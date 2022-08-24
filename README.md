@@ -35,7 +35,7 @@ To test your installation you can run:
 
 
 
-# Requierements for the experiments:
+# Requierements for the experiments
 
 Installations of:
 - hisat2 (version 2.2.1) from http://daehwankimlab.github.io/hisat2/manual/)
@@ -43,7 +43,7 @@ Installations of:
 - If not installed in the home directory please set paths of the installation directory in the 'PATHS' file.
 
 
-# Rerun experiments:
+# Rerun experiments
 	make data
 	make all_eperiments
 

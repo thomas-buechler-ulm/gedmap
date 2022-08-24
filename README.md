@@ -12,7 +12,7 @@ Installation of the SDSL library. (https://github.com/simongog/sdsl-lite)
 # Installation
 First, if sdsl is not installed in your home directory, edit the PATHS file and set the correct path to sdsl-lite directory.
 
-	git clone https://github.com/th0mas-buechler/gedmap/
+	git clone https://github.com/thomas-buechler-ulm/gedmap/
 	cd gedmap
 	make gedmap
 

@@ -3,13 +3,13 @@
 GED-MAP is a prototype for pangemonic read mapping.
 This software is part of the article *Efficient short read mapping to a pangenome that is represented by a graph of ED strings* by Thomas Büchler, Jannik Ohlbrich and Enno Ohlebusch. (Submitted to Bioinformatics)
 
-# Requirements:
+# Requirements
 
 A modern, C++11 ready compiler such as g++ version 4.9 or higher or clang version 3.2 or higher .
 
 Installation of the SDSL library. (https://github.com/simongog/sdsl-lite)
 
-# Installation:
+# Installation
 First, if sdsl is not installed in your home directory, edit the PATHS file and set the correct path to sdsl-lite directory.
 
 	make gedmap

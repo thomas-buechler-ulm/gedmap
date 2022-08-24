@@ -4,7 +4,7 @@
 #################################################
 
 time   = /usr/bin/time
-gedmap_dir   = ~/edsm
+gedmap_dir   = ~/gedmap
 hs_dir     = ~/hisat2
 vg_dir     = ~/vg
 sdsl_dir   = ~/sdsl-lite

@@ -1,0 +1,17 @@
+/*
+!.gitignore
+!Makefile
+!PATHS
+!README.md
+!LICENSE
+!src/
+#
+!a_little_example/
+#
+!data/
+data/*
+!data/Makefile
+#
+!exp/
+exp/*
+!exp/Makefile

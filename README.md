@@ -39,6 +39,7 @@ To test your installation you can run:
 
 Installations of:
 - hisat2 (version 2.2.1) from http://daehwankimlab.github.io/hisat2/manual/)
+- samtools
 - vg ( version v1.37.0-11-g2f6837d33) from https://github.com/vgteam/vg
 - If not installed in the home directory please set paths of the installation directory in the 'PATHS' file.
 

@@ -9,10 +9,14 @@ include ../PATHS
 # make                                          #
 #                                               #
 #################################################
+GEDMAP_DIR  = gedmap
+HISAT_DIR   = hisat2
+GIRAFFE_DIR = vg_giraffe
+#################################################
 
-all_expermiments:   $(GEDMAP_DIR)/index.out generate_samples $(GEDMAP_DIR)/eval.out $(HISAT_DIR)/index.out  $(HISAT_DIR)/eval.out  $(GIRAFFE_DIR)/index.out $(GIRAFFE_DIR)/eval.out  compare_sam_ged_hisat2
-clean: $(GEDMAP_DIR)/clean $(HISAT_DIR)/clean $(GIRAFFE_DIR)/clean clean_samples 
-	rm compare_sam_ged_hisat2
+all_expermiments:   $(GEDMAP_DIR)/index.out samples/all $(GEDMAP_DIR)/eval.out $(HISAT_DIR)/index.out  $(HISAT_DIR)/eval.out  $(GIRAFFE_DIR)/index.out $(GIRAFFE_DIR)/eval.out  compare_sam_ged_hisat2
+clean: $(GEDMAP_DIR)/clean $(HISAT_DIR)/clean $(GIRAFFE_DIR)/clean samples/clean
+	rm -f compare_sam_ged_hisat2
 
 ################ INPUT FILES  ###################
 
@@ -113,13 +117,12 @@ samples/all: $(GEDS)
 	for target in $(SAMPLES); do make $(SAMPLE_DIR)/$${target}.fq ; done
 
 samples/clean:
-	for target in $(SAMPLES); do rm -f $${target}.fq ; done
+	rm -r -f $(SAMPLE_DIR)
 ##################### GEDMAP ######################
-GEDMAP_DIR = gedmap
-gedmap     = $(gedmap_dir)/gedmap
+gedmap     = ../gedmap
 
 $(gedmap):
-	cd $(gedmap_dir) && make gedmap
+	cd .. && make gedmap
 
 GEDS = $(GEDMAP_DIR)/human.geds
 MINI = $(GEDMAP_DIR)/human.$(GEDMAP_W).$(GEDMAP_K).min
@@ -183,9 +186,9 @@ $(GEDMAP_DIR)/map.out: $(gedmap)
 $(GEDMAP_DIR)/eval.out: $(GEDMAP_DIR)/map.out
 	mkdir -p $(GEDMAP_DIR)
 	../eval_sam /dev/null | head -n  1 > $(GEDMAP_DIR)/eval.out
-	for target in $(SAMPLES); do $(gedmap_dir)/eval_sam $(GEDMAP_DIR)/$${target}.sam | tail -n 1 >> $(GEDMAP_DIR)/eval.out; done
-	$(gedmap_dir)/eval_sam $(GEDMAP_DIR)/reads.sam | tail -n 1 >> $(GEDMAP_DIR)/eval.out
-	$(gedmap_dir)/eval_sam $(GEDMAP_DIR)/reads2.sam | tail -n 1 >> $(GEDMAP_DIR)/eval.out
+	for target in $(SAMPLES); do ../eval_sam $(GEDMAP_DIR)/$${target}.sam | tail -n 1 >> $(GEDMAP_DIR)/eval.out; done
+	../eval_sam $(GEDMAP_DIR)/reads.sam | tail -n 1 >> $(GEDMAP_DIR)/eval.out
+	../eval_sam $(GEDMAP_DIR)/reads2.sam | tail -n 1 >> $(GEDMAP_DIR)/eval.out
 
 $(GEDMAP_DIR)/clean:
 	rm -f -r $(GEDMAP_DIR)
@@ -196,7 +199,6 @@ $gedmap_all: $(GEDMAP_DIR)/index.out generate_samples $(GEDMAP_DIR)/map.out $(GE
 
 ##################### HISAT #####################
 
-HISAT_DIR = hisat2
 
 ht2-extr = $(HISAT_DIR)/human.extr
 ht2-idx  = $(HISAT_DIR)/human.idx
@@ -253,9 +255,9 @@ $(HISAT_DIR)/map.out: $(gedmap)
 $(HISAT_DIR)/eval.out: $(HISAT_DIR)/map.out
 	mkdir -p $(HISAT_DIR)
 	../eval_sam /dev/null | head -n  1 > $(HISAT_DIR)/eval.out
-	for target in $(SAMPLES); do $(gedmap_dir)/eval_sam $(HISAT_DIR)/$${target}.sam | tail -n 1 >> $(HISAT_DIR)/eval.out; done
-	$(gedmap_dir)/eval_sam $(HISAT_DIR)/reads.sam | tail -n 1 >> $(HISAT_DIR)/eval.out
-	$(gedmap_dir)/eval_sam $(HISAT_DIR)/reads2.sam | tail -n 1 >> $(HISAT_DIR)/eval.out
+	for target in $(SAMPLES); do ../eval_sam $(HISAT_DIR)/$${target}.sam | tail -n 1 >> $(HISAT_DIR)/eval.out; done
+	../eval_sam $(HISAT_DIR)/reads.sam | tail -n 1 >> $(HISAT_DIR)/eval.out
+	../eval_sam $(HISAT_DIR)/reads2.sam | tail -n 1 >> $(HISAT_DIR)/eval.out
 
 $(HISAT_DIR)/clean:
 	rm -f -r $(HISAT_DIR)
@@ -263,7 +265,6 @@ $(HISAT_DIR)/clean:
 $(HISAT_DIR)/all: $(HISAT_DIR)/index.out $(HISAT_DIR)/map.out $(HISAT_DIR)/eval.out
 
 ##################### VG GIRFAFFE #################################
-GIRAFFE_DIR = giraffe
 
 vg = $(vg_dir)/bin/vg
 
@@ -277,7 +278,7 @@ $(GZ_DIR)/clean_all_vcf_tabix:
 	rm -f $(GZ_DIR)/all_vcf_tabix
 	rm -f $(GZ_DIR)/*.tbi
 
-$(GZ_DIR)/all_vcf_tabix: $(DATA)/all_vcf_downloaded
+$(GZ_DIR)/all_vcf_tabix: $(GZ_DIR)/all_vcf_downloaded
 	#DOWNLOAD CHROM 1 - 22 + X + Y
 	for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 ; do \
 	tabix -p vcf $(GZ_DIR)/chrom$$i.vcf.gz &  \
@@ -341,9 +342,9 @@ $(GIRAFFE_DIR)/map.out:
 $(GIRAFFE_DIR)/eval.out: $(GIRAFFE_DIR)/map.out
 	mkdir -p $(GIRAFFE_DIR)
 	../eval_sam /dev/null | head -n  1 > $(GIRAFFE_DIR)/eval.out
-	for target in $(SAMPLES); do $(gedmap_dir)/eval_sam $(GIRAFFE_DIR)/$${target}.sam | tail -n 1 >> $(GIRAFFE_DIR)/eval.out; done
-	$(gedmap_dir)/eval_sam $(GIRAFFE_DIR)/reads.sam | tail -n 1 >> $(GIRAFFE_DIR)/eval.out
-	$(gedmap_dir)/eval_sam $(GIRAFFE_DIR)/reads2.sam | tail -n 1 >> $(GIRAFFE_DIR)/eval.out
+	for target in $(SAMPLES); do ../eval_sam $(GIRAFFE_DIR)/$${target}.sam | tail -n 1 >> $(GIRAFFE_DIR)/eval.out; done
+	../eval_sam $(GIRAFFE_DIR)/reads.sam | tail -n 1 >> $(GIRAFFE_DIR)/eval.out
+	../eval_sam $(GIRAFFE_DIR)/reads2.sam | tail -n 1 >> $(GIRAFFE_DIR)/eval.out
 
 $(GIRAFFE_DIR)/all: $(GIRAFFE_DIR)/index.out $(GIRAFFE_DIR)/map.out $(GIRAFFE_DIR)/eval.out
 
@@ -356,7 +357,10 @@ $(GIRAFFE_DIR)/clean:	$(GZ_DIR)/clean_all_vcf_tabix
 	cd .. && make comp_sams
 	
 compare_sam_ged_hisat2: $(HISAT_DIR)/reads.in-order.sam $(HISAT_DIR)/reads2.in-order.sam $(GEDMAP_DIR)/reads.in-order.sam $(GEDMAP_DIR)/reads2.in-order.sam ../comp_sams
-	../comp_sams ../data/reads.fq gedmap/reads.sam hisat2/reads1.sam > compared_sam_ged_hisat2
-	../comp_sams ../data/reads2.fq gedmap/reads2.sam hisat2/reads2.sam > compared_sam_ged_hisat2
-	cat  > compared_sam_ged_hisat2
+	echo gedmap vs hisat read set 1 > compare_sam_ged_hisat2
+	../comp_sams ../data/reads.fq gedmap/reads.in-order.sam hisat2/reads.in-order.sam >> compare_sam_ged_hisat2
+	echo gedmap vs hisat read set 2 >> compare_sam_ged_hisat2
+	../comp_sams ../data/reads2.fq gedmap/reads2.in-order.sam hisat2/reads2.in-order.sam >> compare_sam_ged_hisat2
+	cat compare_sam_ged_hisat2
 	
+#####################

@@ -20,13 +20,11 @@ all_for_experiments: hs37d5.fa human.vcf reads.fq reads2.fq
 
 
 clean:
-	rm -f hs37d5.fa human.vcf reads.fq reads2.fq all_vcf_downloaded hs37d5.fa.fai
-	rm -f -r gz
+	rm -f hs37d5.fa human.vcf reads.fq reads2.fq hs37d5.fa.fai
+	rm -f -r gz	
 
-gz_dir:
+gz/all_vcf_downloaded: 
 	mkdir -p gz
-
-all_vcf_downloaded: gz_dir
 	#DOWNLOAD CHROM 1 - 22 + X + Y
 	for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 ; do \
 	wget -q ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr$$i.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz -O gz/chrom$$i.vcf.gz &  \
@@ -35,28 +33,30 @@ all_vcf_downloaded: gz_dir
 	wget -q ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chrY.phase3_integrated_v2b.20130502.genotypes.vcf.gz -O gz/chromY.vcf.gz & \
 	echo waiting for download... ; \
 	wait
-	touch all_vcf_downloaded
+	touch gz/all_vcf_downloaded
 
-human.vcf: all_vcf_downloaded
+human.vcf: gz/all_vcf_downloaded
 	# UNZIP AND CONCATENATE VCF FILES
 	# -dkc: d = decompress, k = keep original, c = write to stdio
 	echo unzip chrom1
 	gzip -dkc gz/chrom1.vcf.gz | awk -v OFS='\t' '{print $$1, $$2, $$3, $$4, $$5, $$6, $$7, $$8}' >  human.vcf &
 	for i in 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 X Y; do \
 	echo unzip chrom$$i; \
-	gzip -dkc gz/chrom$$i.vcf.gz | awk -v OFS='\t' '{print $$1, $$2, $$3, $$4, $$5, $$6, $$7, $$8}' | grep -v '##' >  tmp$$i.vcf & \
+	gzip -dkc gz/chrom$$i.vcf.gz | awk -v OFS='\t' '{print $$1, $$2, $$3, $$4, $$5, $$6, $$7, $$8}' | grep -v '##' >  gz/tmp$$i.vcf & \
 	done; \
 	wait
 	for i in 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 X Y; do \
-	cat tmp$$i.vcf >> human.vcf; rm tmp$$i.vcf; done
+	cat gz/tmp$$i.vcf >> human.vcf; rm gz/tmp$$i.vcf; done
+	touch human.vcf
 
-
-hs37d5.fa: gz_dir
+hs37d5.fa:
+	mkdir -p gz
 	#GET hs37d5.fa FROM 1000 GENOMES PROJEKT PHASE 2
 	curl ftp://ftp.1000genomes.ebi.ac.uk//vol1/ftp/technical/reference/phase2_reference_assembly_sequence/hs37d5.fa.gz -o gz/hs37d5.fa.gz
 	#awk '{print $1}': only print '>1' not '>1 dna:chromosome chromosome:GRCh37:1:1:249250621:1' as sequence name. ONLY CHROM 1 - 22 + X + Y
 	gunzip -d -c gz/hs37d5.fa.gz | awk  'NR==1, NR==51594656 {print $$1}' > hs37d5.fa
-	#rm -f hs37d5.fa.gz
+	touch hs37d5.fa
+
 
 ################ FOR EXPERIMENTS WITH ONLY CHROM 1 OR 22 #########################
 chrom1 : chrom1.fa  chrom1.vcf
@@ -77,7 +77,8 @@ chrom1.fa: hs37d5.fa
 	#CUT CHROMOSOM 1 FROM hs37d5
 	awk 'NR==1, NR==4154179 {print $$0}'  hs37d5.fa > chrom1.fa
 
-gz/chrom1.vcf.gz: gz_dir
+gz/chrom1.vcf.gz: 
+	mkdir -p gz
 	#GET DATA FROM 1000 GENOMES PROJEKT PHASE 3
 	curl ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr1.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz -o gz/chrom1.vcf.gz
 

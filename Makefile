@@ -21,8 +21,8 @@ OPTIONS = $(MY_CXX) $(MY_CXX_FLAGS) $(MY_CXX_OPT_FLAGS) -no-pie $(C_OPTIONS) -I$
 help:
 	# 'make bin' to compile
 	# 'make data_download' to download data
-	# 'make all_experiments' to make all experiments (after downloading data)
-	# 'make edsm_experiments' to only run experiments with gedmap (after downloading data)
+	# 'make all_experiments' to make all experiments (set paths to vg and hisat2 before)
+	# 'make gedmap_eperiments' to only run experiments with gedmap
 	# 'make a_little_example' to run the little_example
 	# 'make clean' to remove everything
 

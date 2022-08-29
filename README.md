@@ -10,12 +10,12 @@ A modern, C++11 ready compiler such as g++ version 4.9 or higher or clang versio
 Installation of the SDSL library. (https://github.com/simongog/sdsl-lite)
 
 # Installation
-First, if sdsl is not installed in your home directory, edit the PATHS file and set the correct path to sdsl-lite directory.
 
 	git clone https://github.com/thomas-buechler-ulm/gedmap/
 	cd gedmap
 	make gedmap
 
+First, if sdsl is not installed in your home directory, edit the PATHS file and set the correct path to sdsl-lite directory, before executing 'make'.
 This produces the executable 'gedmap'.
 
 ## Short description

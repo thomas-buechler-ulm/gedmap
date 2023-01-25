@@ -1,5 +1,7 @@
 #pragma once
 namespace gedmap_mini{
+using namespace std;
+using namespace sdsl;
 
 // Minimap and miniasm: fast mapping and de novo assembly for noisy long sequences: code http://bit.ly/invihgi
 uint64_t hash(uint64_t key) {
@@ -406,7 +408,7 @@ struct minimizer_builder{
 			uint32_t count = 0;
 			while( (i+count) < kmer_pos.size() && kmer == kmer_pos[(i+count)].first) count++;
 			
-			if(count > t){ // trim
+			if(t && count > t){ // trim
 				trimmed_kmers++;
 				trimmed_positions += count;
 				i += count;

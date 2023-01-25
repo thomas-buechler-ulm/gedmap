@@ -61,9 +61,9 @@ GEDMAP_PARAMS = -rc -tc 64
 GEDMAP_PARAMS_SAM0 =  $(GEDMAP_PARAMS) -mac 50 -mat 100
 GEDMAP_PARAMS_SAM1 =  $(GEDMAP_PARAMS) -mac 50 -mat 100
 GEDMAP_PARAMS_SAM3 =  $(GEDMAP_PARAMS) -mac 50 -mat 100
-GEDMAP_PARAMS_SAM8 =  $(GEDMAP_PARAMS) -d 20 
-GEDMAP_PARAMS_SAM9 =  $(GEDMAP_PARAMS) -d 20 
-GEDMAP_PARAMS_SAM11 = $(GEDMAP_PARAMS) 
+GEDMAP_PARAMS_SAM8 =  $(GEDMAP_PARAMS) -d 20
+GEDMAP_PARAMS_SAM9 =  $(GEDMAP_PARAMS) -d 20
+GEDMAP_PARAMS_SAM11 = $(GEDMAP_PARAMS)
 GEDMAP_PARAMS_READ =  $(GEDMAP_PARAMS)
 
 HISAT_PARAMS_SAM0 = -p 64 --ignore-quals --score-min L,0,-0.6 --no-softclip --mp 1,1 --rdg 0,1 --rfg 0,1 --np 0 -k 1 -t
@@ -162,7 +162,80 @@ $(GEDMAP_DIR)/reads.in-order.sam: $(MINI) $(READS)
 	$(gedmap) align  $(GEDS) $(READS)  $(common_align_params) -o  $(GEDMAP_DIR)/reads.in-order.sam   $(GEDMAP_PARAMS_READ) -io
 $(GEDMAP_DIR)/reads2.in-order.sam: $(MINI) $(READS2)
 	$(gedmap) align  $(GEDS) $(READS2)  $(common_align_params) -o  $(GEDMAP_DIR)/reads2.in-order.sam   $(GEDMAP_PARAMS_READ) -io
-	
+
+################## EVALUATE INDEX WITH DIFFERENT PARAMETER
+IDX_EVAL_DIR  = $(GEDMAP_DIR)/index_eval
+
+
+eval_index_parameter: $(IDX_EVAL_DIR)/samples.1000000.fq $(IDX_EVAL_DIR)/samples.10000.fq $(IDX_EVAL_DIR)/samples.100.fq $(IDX_EVAL_DIR)/indexes $(IDX_EVAL_DIR)/eval_idx $(IDX_EVAL_DIR)/eval_map $(IDX_EVAL_DIR)/eval_qual
+
+$(IDX_EVAL_DIR)/indexes:
+	mkdir -p $(IDX_EVAL_DIR)/indexes
+	rm $(IDX_EVAL_DIR)/indexes/index.out -f
+	for t in 0 1000; do \
+		for w in 4 7 15 30; do \
+			for k in 5 10 13 15 16 17; do \
+				$(gedmap) index  $(GEDS)  -k $$k -w $$w  -o $(IDX_EVAL_DIR)/indexes/human.t$$t.$$w.$$k.min -a $(ADJ) -2fa $(2FA) -trim $$t  | tee -a $(IDX_EVAL_DIR)/indexes/index.out ; \
+			done; \
+		done; \
+	done
+
+$(IDX_EVAL_DIR)/samples.1000000.fq:
+	mkdir -p $(IDX_EVAL_DIR)/
+	$(gedmap) sample $(GEDS) -c 1000000 -o $(IDX_EVAL_DIR)/samples.1000000.fq -l 100 -e 0 -e_d 0 -e_i 0 -rc 0
+
+
+$(IDX_EVAL_DIR)/samples.10000.fq: $(IDX_EVAL_DIR)/samples.1000000.fq
+	head -n 40000 $(IDX_EVAL_DIR)/samples.1000000.fq > $(IDX_EVAL_DIR)/samples.10000.fq
+
+
+$(IDX_EVAL_DIR)/samples.100.fq: $(IDX_EVAL_DIR)/samples.1000000.fq
+	head -n 400 $(IDX_EVAL_DIR)/samples.1000000.fq > $(IDX_EVAL_DIR)/samples.100.fq
+
+
+$(IDX_EVAL_DIR)/eval_idx:
+	mkdir -p $(IDX_EVAL_DIR)/eval
+	for t in 0 1000; do \
+		for w in 4 7 15 30; do \
+			../eval_idx $(IDX_EVAL_DIR)/indexes/human.t1000.30.15.min $(IDX_EVAL_DIR)/samples.100.fq | head -n 1 > $(IDX_EVAL_DIR)/eval/eval_idx.t$$t.w$$w.dat; \
+			for k in 5; do \
+				../eval_idx $(IDX_EVAL_DIR)/indexes/human.t$$t.$$w.$$k.min $(IDX_EVAL_DIR)/samples.100.fq | tail -n 1 >> $(IDX_EVAL_DIR)/eval/eval_idx.t$$t.w$$w.dat;  \
+			done; \
+			for k in 10 13 15 16 17; do \
+				../eval_idx $(IDX_EVAL_DIR)/indexes/human.t$$t.$$w.$$k.min $(IDX_EVAL_DIR)/samples.10000.fq | tail -n 1 >> $(IDX_EVAL_DIR)/eval/eval_idx.t$$t.w$$w.dat; \
+			done; \
+		done; \
+	done
+
+$(IDX_EVAL_DIR)/eval_map:
+	mkdir -p $(IDX_EVAL_DIR)/map
+	mkdir -p $(IDX_EVAL_DIR)/eval
+	for t in 0 1000; do \
+		for w in 4 7 15 30; do \
+			rm -f $(IDX_EVAL_DIR)/map/map_t$$t.w$$w.out; \
+			for k in 10 13 15 16 17; do \
+				$(gedmap) align  $(GEDS) $(IDX_EVAL_DIR)/samples.1000000.fq  $(IDX_EVAL_DIR)/indexes/human.t$$t.$$w.$$k.min -a $(ADJ) -o  $(IDX_EVAL_DIR)/map/t$$t.w$$w.k$$k.sam   $(GEDMAP_PARAMS_SAM0) | tee -a $(IDX_EVAL_DIR)/map/map_t$$t.w$$w.out;\
+			done; \
+			grep mapping $(IDX_EVAL_DIR)/map/map_t$$t.w$$w.out | awk 'BEGIN{OFS="\t"; print "k", "mapping_time";a[1]=10;a[2]=13;a[3]=15;a[4]=16;a[5]=17}{print  a[NR], $$4 }' > $(IDX_EVAL_DIR)/eval/eval_map.t$$t.w$$w.dat; \
+		done; \
+	done
+
+$(IDX_EVAL_DIR)/eval_qual:
+	mkdir -p $(IDX_EVAL_DIR)/eval
+	for t in 0 1000; do \
+		for w in 4 7 15 30; do \
+			rm -f $(IDX_EVAL_DIR)/eval/eval_qual.t$$t.w$$w.dat ; \
+			../eval_sam /dev/null | head -n  1  | tee -a $(IDX_EVAL_DIR)/eval/eval_qual.t$$t.w$$w.dat; \
+			for k in 10 13 15 16 17; do \
+				../eval_sam  $(IDX_EVAL_DIR)/map/t$$t.w$$w.k$$k.sam   | tail -n 1  | tee -a $(IDX_EVAL_DIR)/eval/eval_qual.t$$t.w$$w.dat; \
+			done; \
+			awk 'BEGIN{FS=OFS="\t";a[1]="k";a[2]=10;a[3]=13;a[4]=15;a[5]=16;a[6]=17}{print  $$0,  a[NR] }' $(IDX_EVAL_DIR)/eval/eval_qual.t$$t.w$$w.dat > $(IDX_EVAL_DIR)/eval/eval_qual.t$$t.w$$w.dat.tmp; \
+			mv $(IDX_EVAL_DIR)/eval/eval_qual.t$$t.w$$w.dat.tmp $(IDX_EVAL_DIR)/eval/eval_qual.t$$t.w$$w.dat; \
+		done; \
+	done
+
+##################  GENERATE INDEX AND MAP AND EVAL
+
 $(GEDMAP_DIR)/index.out: $(gedmap)
 	mkdir -p $(GEDMAP_DIR)
 	############ GEDMAP INDEX ##################
@@ -195,7 +268,7 @@ $(GEDMAP_DIR)/clean:
 
 $(GEDMAP_DIR)/all: $(GEDMAP_DIR)/index.out $(GEDMAP_DIR)/map.out $(GEDMAP_DIR)/eval.out
 
-$gedmap_all: $(GEDMAP_DIR)/index.out generate_samples $(GEDMAP_DIR)/map.out $(GEDMAP_DIR)/eval.out
+gedmap_all: $(GEDMAP_DIR)/index.out samples/all $(GEDMAP_DIR)/map.out $(GEDMAP_DIR)/eval.out
 
 ##################### HISAT #####################
 

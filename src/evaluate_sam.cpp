@@ -78,7 +78,7 @@ int main(int argc, char *argv[]){
 		
 		vector<string> query_fields = string_split(fields[0],'_');
 		
-		uint32_t mapping_pos = stoi( fields[3] );
+		uint64_t mapping_pos = stol( fields[3] );
 		uint32_t mapping_dist = 9999;
 		bool     mapping_dist_known = false;		
 		//find dist
@@ -93,7 +93,7 @@ int main(int argc, char *argv[]){
 			}		
 		
 		if(query_fields.size() > 5){
-			uint32_t sample_pos = stoi( query_fields [3]);
+			uint64_t sample_pos = stol( query_fields [3]);
 			uint32_t sample_dist =  stoi( query_fields [5]);
 			
 

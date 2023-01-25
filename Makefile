@@ -35,8 +35,12 @@ gedmap: $(SRC)/* $(LIB)/* $(PROG)/*
 
 eval_sam: $(SRC)/evaluate_sam.cpp
 	$(MY_CXX) $(SRC)/evaluate_sam.cpp -o eval_sam
+
 comp_sams: $(SRC)/compare_sams.cpp
 	$(MY_CXX) $(SRC)/compare_sams.cpp -o comp_sams
+
+eval_idx: $(SRC)/evaluate_my_index.cpp
+	$(OPTIONS) -fopenmp  $(SRC)/evaluate_my_index.cpp -o eval_idx $(LIBS)
 
 #################################################
 

@@ -127,7 +127,7 @@ int main(int argc,  char** argv){
 	for(uint32_t i = 0; i < COUNT;i++){
 		reads[i] = a_sample(EDS, p2FA, adj);
 		
-	#pragma omp critical
+		#pragma omp critical
 		{
 			count++;
 			if((count*100)%COUNT == 0) flush_row( "Generating: " + to_string((count*100)/COUNT) + "%");
@@ -250,6 +250,7 @@ string read_EDS_substring( uint32_t start_pos, string & EDS, adjacency & adj, ui
 				break;
 			case '#':
 				try{
+					if(!adj.initialised) return ""; //no ADJ-file given... dont go over #
 					const auto targets = adj(position+start_pos);
 					if(targets.size() == 0) return ""; //(END OF CHROMOSOM) ... try again 
 					uint32_t random_target;

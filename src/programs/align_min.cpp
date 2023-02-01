@@ -48,14 +48,15 @@ int main(int argc,  char** argv){
 	tv[tv_LOAD].stop();
 	tv[tv_MAP].start();
 
-	const uint32_t int_width = bitsneeded(EDS.size());
+	uint32_t int_width = bitsneeded(EDS.size());
+	if(int_width < 2*mini.k) int_width = 2*mini.k;
 
 	// DIFFERENTIATE BETWEEN INTEGER SIZES
 	if		(int_width <=  8 ) paralell_processor< 8, uint8_t>(mini, EDS, ADJ, p2FA, fastq_in_stream, out_stream);
 	else if	(int_width <= 16 ) paralell_processor<16,uint16_t>(mini, EDS, ADJ, p2FA, fastq_in_stream, out_stream);
 	else if	(int_width <= 32 ) paralell_processor<32,uint32_t>(mini, EDS, ADJ, p2FA, fastq_in_stream, out_stream);
 	else if	(int_width <= 64 ) paralell_processor<64,uint64_t>(mini, EDS, ADJ, p2FA, fastq_in_stream, out_stream);
-	else throw runtime_error (" in align main: EDS too long");
+	else throw runtime_error (" in align main: EDS of k too big");
 
 	tv[tv_MAP].stop();
 
@@ -188,7 +189,7 @@ void paralell_processor( gedmap_mini::minimizer_index & mini, const std::string 
 					results += res;
 					if(res) mapped++;
 					count++;
-					if(!(count%1000))
+					if(!(count%10000))
 						gedmap_io::flush_row("Searched reads", to_string(count));
 					chances_count += my_searches_chances;
 				}

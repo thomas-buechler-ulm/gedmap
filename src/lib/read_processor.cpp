@@ -148,7 +148,7 @@ struct fasta_read{
 			int_type kmer_id = gedmap_mini::hash_inverse(window[min_pos]);
 			
 			//add to kmer pairs
-			if(last_kmer_pos != kmer_pos && mini.indicator[kmer_id]){
+			if(last_kmer_pos != kmer_pos && mini.is_in_index(kmer_id)){
 				last_kmer_pos = kmer_pos;
 				kmer_pairs.push_back(make_pair<int_type,int_type>((int_type) kmer_id ,(int_type) kmer_pos));
 			}
@@ -388,11 +388,11 @@ struct fasta_read{
 			
 				
 			ofs 	<< QNAME << '\t' << FLAG << '\t' << RNAME << '\t' << POS << '\t' << MAPQ << '\t' << CIGAR << '\t' << RNEXT << '\t' << PNEXT << '\t' << TLEN << '\t' << SEQ << '\t' << QUAL << '\t'
-				<< "NM:i:" << ((uint32_t)get<1>(alignments[i])) <<  (off?(" XO:i:" + to_string(off)):"") << endl;
+				<< "NM:i:" << ((uint32_t)get<1>(alignments[i])) <<  (off?(" XO:i:" + to_string(off)):"") << '\n';
 		}
 		
 		if(!alignments.size() && write_failure)
-			ofs 	<< QNAME << '\t' << UNMAPPED << '\t' << RNAME << '\t' << POS << '\t' << MAPQ << '\t' << CIGAR << '\t' << RNEXT << '\t' << PNEXT << '\t' << TLEN << '\t' << SEQ << '\t' << QUAL <<  endl;
+			ofs 	<< QNAME << '\t' << UNMAPPED << '\t' << RNAME << '\t' << POS << '\t' << MAPQ << '\t' << CIGAR << '\t' << RNEXT << '\t' << PNEXT << '\t' << TLEN << '\t' << SEQ << '\t' << QUAL <<  '\n';
 		delete_alignment();
 		return res;
 	};
@@ -586,20 +586,20 @@ void fasta_read<t_width,int_type>::start_aligner(const string & EDS, const adjac
 					#pragma omp critical
 					{
 						const string_view read = (align_r_c ? r_c.sequence : sequence);
-						cerr << "D = " << D << " eds_pos = " << eds_pos << " read_pos = " << read_pos << endl;
+						cerr << "D = " << D << " eds_pos = " << eds_pos << " read_pos = " << read_pos << '\n';
 						cerr << "old says " << (offset == EDS.size() ? "impossible"s : to_string(dist))
-							<< ", new says " << (min_dist > D ? "impossible"s : to_string(min_dist)) << endl;
-						cerr << (align_r_c ? "reverse" : "not reverse") << endl;
-						cerr << "READ = " << read << endl;
-						cerr << "old cig = " << cig << endl;
+							<< ", new says " << (min_dist > D ? "impossible"s : to_string(min_dist)) << '\n';
+						cerr << (align_r_c ? "reverse" : "not reverse") << '\n';
+						cerr << "READ = " << read << '\n';
+						cerr << "old cig = " << cig << '\n';
 
 						cerr << "FORWARD:\n ";
-						cerr << "\tread: " << read.substr(read_pos) << endl;
-						cerr << "\teds : " << EDS.substr(eds_pos, 2 * read.size()) << endl;
+						cerr << "\tread: " << read.substr(read_pos) << '\n';
+						cerr << "\teds : " << EDS.substr(eds_pos, 2 * read.size()) << '\n';
 
 						cerr << "BACKWARD:\n ";
-						cerr << "\tread: " << read.substr(0, read_pos) << " | " << read.substr(read_pos, 10) << endl;
-						cerr << "\teds : " << EDS.substr(eds_pos - 2 * read.size(), 2 * read.size()) << " | " << EDS.substr(eds_pos, 10)  << endl;
+						cerr << "\tread: " << read.substr(0, read_pos) << " | " << read.substr(read_pos, 10) << '\n';
+						cerr << "\teds : " << EDS.substr(eds_pos - 2 * read.size(), 2 * read.size()) << " | " << EDS.substr(eds_pos, 10)  << '\n';
 
 						exit(1);
 					}
@@ -614,7 +614,7 @@ void fasta_read<t_width,int_type>::start_aligner(const string & EDS, const adjac
 					if (dist2 > min_dist) {
 						#pragma omp critical
 						{
-							cerr << "eds_pos = " << (uint64_t)eds_pos << " read_pos = " << (uint64_t)read_pos << " pos = " << (uint64_t)pos << " min_dist = " << min_dist << " dist2 = " << dist2 << endl;
+							cerr << "eds_pos = " << (uint64_t)eds_pos << " read_pos = " << (uint64_t)read_pos << " pos = " << (uint64_t)pos << " min_dist = " << min_dist << " dist2 = " << dist2 << '\n';
 
 							exit(1);
 						}

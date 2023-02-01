@@ -33,8 +33,8 @@ namespace gedmap_index_kmi{
 }
 
 namespace gedmap_index_min{
-	const uint32_t WINDOW_SIZE_DEFAULT		= 7;
-	const uint32_t KMER_SIZE_DEFAULT		= 15;
+	const uint32_t WINDOW_SIZE_DEFAULT		= 5;
+	const uint32_t KMER_SIZE_DEFAULT		= 20;
 	const uint32_t MAX_N_IN_SEED_DEFAULT 	= 2;
 	const uint32_t TRIM_DEFAULT		 	= 1000;
 	

@@ -55,8 +55,8 @@ void analyse_kmi(char **argv, gedmap_mini::minimizer_index & mini){
 	     << (med(occs,(mini.table.size()-1)/2 ) ) << '\t' 
 	     << (size_in_bytes(mini.positions)) << '\t' 
 	     << (size_in_bytes(mini.table)) << '\t' 
-	     << (size_in_bytes(mini.indicator)) << '\t' 
-	     << (size_in_bytes(mini.ind_rs)) << '\t'
+	     << (size_in_bytes(mini.indicator)+size_in_bytes(mini.indicator_sd)) << '\t' 
+	     << (size_in_bytes(mini.ind_rs)+size_in_bytes(mini.ind_rs_sd)) << '\t'
 	     << (size_in_bytes(mini.positions) + size_in_bytes(mini.table) + size_in_bytes(mini.indicator) + size_in_bytes(mini.ind_rs)); 
 }
 
@@ -78,11 +78,11 @@ vector<string> string_split(string & s, char delim){
 	throw runtime_error ("Strange things in my string_split implementation\n");
 }
 
-pair<uint32_t,uint32_t> count_hints(gedmap_mini::minimizer_index & mini, fasta_read<32,uint32_t>  & read  ){
+pair<uint32_t,uint32_t> count_hints(gedmap_mini::minimizer_index & mini, fasta_read<64,uint64_t>  & read  ){
 	uint32_t correct = 0;
 	uint32_t all = 0;
 	vector<string> fields = string_split(read.id, '_');
-	uint32_t starting_pos = stol(fields[3]);
+	uint64_t starting_pos = stol(fields[3]);
 	read.get_fragments(read.sequence.size(), mini);
 	read.get_positions(mini);
 	for(auto pp : read.pos_pairs){
@@ -115,7 +115,7 @@ void analyse_kmi_samples(char** argv, gedmap_mini::minimizer_index & mini){
 	
 	while(fq_in.good()){	
 		try{
-			fasta_read<32,uint32_t>  read(fq_in);
+			fasta_read<64,uint64_t>  read(fq_in);
 			uint32_t ch,h;
 			tie(ch,h) = count_hints(mini, read);
 			c_sum += ch;

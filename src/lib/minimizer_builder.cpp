@@ -1,4 +1,6 @@
 #pragma once
+#include <sdsl/sd_vector.hpp>
+#include <sdsl/bit_vectors.hpp>
 namespace gedmap_mini{
 using namespace std;
 using namespace sdsl;
@@ -66,30 +68,36 @@ uint64_t hash_inverse(uint64_t key) {
  *  2) positions[table[x]] contains the first postions for this kmer
  *  3) positions[table[x+1]-1] contains the last postions for this kmer
  */
-struct minimizer_index{
+struct minimizer_index{	
 	uint32_t k;
 	uint32_t w;
-	sdsl::int_vector<0> positions;
-	sdsl::int_vector<0> table;
+	int_vector<0> positions;
+	int_vector<0> table;
 	sdsl::bit_vector    indicator;
 	sdsl::rank_support_v<> ind_rs;
+	bool sparse;
+	sd_vector<> indicator_sd;
+	rank_support_sd<> ind_rs_sd;
 	
+	template<typename kmer_int_type>
+	bool is_in_index(kmer_int_type kmer) const{
+		return (!sparse && indicator[kmer])||(sparse && indicator_sd[kmer]);
+	}
 	
 	template<typename kmer_int_type>
 	//<begin,size>
 	std::pair<size_t, size_t> boundaries(kmer_int_type kmer){
-		if(! indicator[kmer] ) return make_pair(0,0);
+		if(!is_in_index(kmer)) return make_pair(0,0);
 		
-		uint64_t x = ind_rs(kmer);
+		uint64_t x = sparse ? ind_rs_sd(kmer) : ind_rs(kmer);
 		return make_pair(table[x] , table[x+1] - table[x]);
 	}
 	
 	template<typename kmer_int_type>
 	sdsl::int_vector<0> operator()(kmer_int_type kmer) const{
-		if(! indicator[kmer] ) 
-			return sdsl::int_vector<0>(0,0,positions.width());
+		if(!is_in_index(kmer)) return sdsl::int_vector<0>(0,0,positions.width());
 		
-		uint64_t x = ind_rs(kmer);
+		uint64_t x = sparse ? ind_rs_sd(kmer) : ind_rs(kmer);
 		uint64_t first = table[x];
 		uint64_t last = table[x+1];
 		sdsl::int_vector<0> out(last-first,0,positions.width());
@@ -106,15 +114,21 @@ struct minimizer_index{
 		sdsl::structure_tree_node *child 			= sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
 		size_type written_bytes 	= 0;
 		
-		sdsl::int_vector<32> constants = sdsl::int_vector<32>(2,k,32);
+		sdsl::int_vector<32> constants = sdsl::int_vector<32>(3,k,32);
+		constants[0] = k;
 		constants[1] = w;
+		constants[2] = sparse;
 		
 		written_bytes += constants	.serialize(out, child, "k_w");
 		written_bytes += positions	.serialize(out, child, "positions");
 		written_bytes += table		.serialize(out, child, "table");
-		written_bytes += indicator	.serialize(out, child, "ind");
-		written_bytes += ind_rs		.serialize(out, child, "ind_rs");
-
+		if(!sparse){
+			written_bytes += indicator	.serialize(out, child, "ind");
+			written_bytes += ind_rs		.serialize(out, child, "ind_rs");
+		}else{
+			written_bytes += indicator_sd	.serialize(out, child, "ind_sd");
+			written_bytes += ind_rs_sd	.serialize(out, child, "ind_rs_sd");
+		}
 		sdsl::structure_tree::add_size(child, written_bytes);
 		return written_bytes;
 	}
@@ -123,14 +137,20 @@ struct minimizer_index{
 	void 	load(std::istream& in){
 		sdsl::int_vector<32> constants;
 		constants	.load(in);
-		k = constants[0];
-		w = constants[1];
+		k		= constants[0];
+		w		= constants[1];
+		sparse		= constants[2];
 		positions	.load(in);
 		table		.load(in);
-		indicator	.load(in);
-		ind_rs	.load(in,&indicator);
+		if(!sparse){
+			indicator	.load(in);
+			ind_rs		.load(in,&indicator);
+		}else{
+			indicator_sd	.load(in);
+			ind_rs_sd	.load(in,&indicator_sd);
+		}
 	} 
-	
+	/*
 	vector<uint64_t> trim(uint32_t max_positions){	
 		vector<uint64_t> stats(6,0);
 		
@@ -173,7 +193,7 @@ struct minimizer_index{
 		stats[3] = table.size()-1;
 		
 		return stats;
-	}	
+	}*/	
 };
 
 struct minimizer_builder{
@@ -375,6 +395,7 @@ struct minimizer_builder{
 		
 		index.k = k;
 		index.w = w;
+		index.sparse = 0;
 		
 		
 		
@@ -390,18 +411,42 @@ struct minimizer_builder{
 // 		index.table = sdsl::int_vector<0>(KMER<uint64_t>::number_of_kmers(k)+1,0,occpointer_int_width);
 		sdsl::int_vector_buffer<0> table_buf(fn_tmp_table, ios::out|ios_base::trunc, 100*MB, occpointer_int_width );
 		
-		index.indicator = sdsl::int_vector<1>(KMER<uint64_t>::number_of_kmers(k),0,1);
-		
-		
-		uint64_t occ_pointer = 0;
-// 		uint64_t tab_pointer = 0;
-		
-		
+		sd_vector_builder ind_builder;
+			
 		uint64_t i = 0;
+		uint32_t kmers_in_index = 0;
+		while(i < kmer_pos.size()){ //COUNT ONES IN INDICATOR
+			uint64_t kmer = kmer_pos[i].first;
+			uint32_t count = 0;
+			while( (i+count) < kmer_pos.size() && kmer == kmer_pos[(i+count)].first) count++;
+			if(t && count > t){ // trim
+				i += count;
+			}else{
+				kmers_in_index++;
+				while(count-- > 0) i++;
+			}
+				
+		}
+		{	//CHECK IF TRANSFORM TO SPARSE IS GOOD
+			uint64_t m = kmers_in_index;
+			uint64_t n = KMER<uint64_t>::number_of_kmers(k);
+			uint64_t x = m * (2 + bitsneeded(n/m));
+			if(x < n){
+				cout << "use sparse indicator vector" << endl;
+				index.sparse = true;	
+				ind_builder = sd_vector_builder(n, m);
+			}else{
+				index.sparse = false;	
+				index.indicator = sdsl::bit_vector(n,0,1);	
+			}
+		}
 		
+		
+		
+		i = 0;
+		uint64_t occ_pointer = 0;
 		uint32_t trimmed_kmers = 0;
 		uint32_t trimmed_positions = 0;
-			
 		while(i < kmer_pos.size()){
 			uint64_t kmer = kmer_pos[i].first;
 			
@@ -413,29 +458,19 @@ struct minimizer_builder{
 				trimmed_positions += count;
 				i += count;
 			}else{
-				index.indicator[kmer] = 1;
-// 				index.table[tab_pointer++] = occ_pointer;
+				if(!index.sparse) index.indicator[kmer] = 1;
+				else ind_builder.set(kmer);
 				table_buf.push_back(occ_pointer);
 				while(count-- > 0) positions_buf[occ_pointer++] =  kmer_pos[i++].second;
 			}
-				
-
-				
-// 			while(i < kmer_pos.size() && kmer == kmer_pos[i].first){
-// 				index.positions[occ_pointer++] =  kmer_pos[i++].second;
-// 				positions_buf[occ_pointer++] =  kmer_pos[i++].second;
-// 			}
 		}
 		
 		cout << "(trimmed kmers " << trimmed_kmers << ')'<< endl;
 		cout << "(trimmed positions " << trimmed_positions << ')' << endl;
 		
-// 		index.table[tab_pointer++] = occ_pointer;
 		table_buf.push_back(occ_pointer);
-// 		index.table.resize(tab_pointer);
 		table_buf.close();
 		positions_buf.close();
-		
 		std::vector<std::pair<uint64_t,uint64_t>>().swap(kmer_pos);
 		
 		load_from_file(index.positions,fn_tmp_positions);
@@ -445,7 +480,11 @@ struct minimizer_builder{
 		remove(fn_tmp_table.c_str());
 		remove(fn_key_val_buf.c_str());
 		
-		util::init_support(index.ind_rs,&index.indicator); 
+		if(!index.sparse) util::init_support(index.ind_rs,&index.indicator);
+		else{
+			index.indicator_sd = sd_vector<>(ind_builder);
+			util::init_support(index.ind_rs_sd,&index.indicator_sd);
+		}; 
 		return index;
 	}
 };

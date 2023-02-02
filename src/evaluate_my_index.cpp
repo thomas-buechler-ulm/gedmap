@@ -46,18 +46,17 @@ void analyse_kmi(char **argv, gedmap_mini::minimizer_index & mini){
 
 	cout << argv[1] << '\t'
 	     << mini.k << '\t'
-	     << mini.w << '\t' 
-	     << mini.positions.size() << '\t' 
-	     << mini.table.size()-1 << '\t' 
-	     << ((mini.table.size()-1)/(double)mini.indicator.size())*100	 << '\t' 
+	     << mini.w << '\t'
+	     << mini.positions.size() << '\t'
+	     << mini.table.size()-1 << '\t'
+	     << ((mini.table.size()-1)/(double)mini.indicator.size())*100 << '\t'
 	     << (mini.positions.size()/ (double) (mini.table.size()-1)) << '\t'
-	     //<< (med(occs,(mini.table.size()- (mini.indicator.size()/2) ) ) ) << '\t' 
-	     << (med(occs,(mini.table.size()-1)/2 ) ) << '\t' 
-	     << (size_in_bytes(mini.positions)) << '\t' 
-	     << (size_in_bytes(mini.table)) << '\t' 
-	     << (size_in_bytes(mini.indicator)+size_in_bytes(mini.indicator_sd)) << '\t' 
+	     << (med(occs,(mini.table.size()-1)/2 ) ) << '\t'
+	     << (size_in_bytes(mini.positions)) << '\t'
+	     << (size_in_bytes(mini.table)) << '\t'
+	     << (size_in_bytes(mini.indicator)+size_in_bytes(mini.indicator_sd)) << '\t'
 	     << (size_in_bytes(mini.ind_rs)+size_in_bytes(mini.ind_rs_sd)) << '\t'
-	     << (size_in_bytes(mini.positions) + size_in_bytes(mini.table) + size_in_bytes(mini.indicator) + size_in_bytes(mini.ind_rs)); 
+	     << (size_in_bytes(mini.positions) + size_in_bytes(mini.table) + size_in_bytes(mini.indicator)+size_in_bytes(mini.indicator_sd) + size_in_bytes(mini.ind_rs)+size_in_bytes(mini.ind_rs_sd));
 }
 
 
@@ -90,30 +89,21 @@ pair<uint32_t,uint32_t> count_hints(gedmap_mini::minimizer_index & mini, fasta_r
 		if( (starting_pos - pp.first) > 10 && (pp.first - starting_pos) < 300)
 			correct++;
 	}
-	/*if(!counter){
-		cout <<  read.id << endl;
-		for(auto pp : read.pos_pairs){
-			//if( (starting_pos - pp.first) > 10 && (pp.first - starting_pos) < 300)
-				cout << pp.first << " " << pp.second << endl;
-		}
-		exit(0);
-	
-	}*/
 	return make_pair(correct,all);
 }
 
 void analyse_kmi_samples(char** argv, gedmap_mini::minimizer_index & mini){
 	vector<uint32_t> c_hints;
 	vector<uint32_t> hints;
-	
+
 	uint32_t read_count = 0;
 	uint32_t c_sum = 0;
-	uint32_t h_sum = 0;	
-	
+	uint32_t h_sum = 0;
+
 	ifstream fq_in;
 	fq_in.open(argv[2],ios_base::in);
-	
-	while(fq_in.good()){	
+
+	while(fq_in.good()){
 		try{
 			fasta_read<64,uint64_t>  read(fq_in);
 			uint32_t ch,h;
@@ -132,48 +122,43 @@ void analyse_kmi_samples(char** argv, gedmap_mini::minimizer_index & mini){
 	uint32_t no_hint = 0;
 	while(!c_hints[no_correct] && no_correct < c_hints.size()) no_correct++;
 	while(!hints[no_hint] && no_hint < hints.size() ) no_hint++;
-	
+
 	cout << string(argv[2]) << '\t'
-	<< c_hints[c_hints.size()/2] << '\t'  
-	<< hints[hints.size()/2] << '\t' 
-	<< (c_sum/read_count) << '\t' 
-	<< (h_sum/read_count) << '\t' 
-	<< no_correct << '\t' 
-	<< no_hint; 
-	
+	<< c_hints[c_hints.size()/2] << '\t'
+	<< hints[hints.size()/2] << '\t'
+	<< (c_sum/read_count) << '\t'
+	<< (h_sum/read_count) << '\t'
+	<< no_correct << '\t'
+	<< no_hint;
 }
 
 int main(int argc, char** argv){
 
 	if(argc < 2){
 		cout << "Argument expected" << endl << "[1] minimizer index" << endl << "([2] samples)" << endl; 
-		return 0;	
+		return 0;
 	}
-	
-	
+
 	gedmap_mini::minimizer_index mini;
 	if(!sdsl::load_from_file<gedmap_mini::minimizer_index>(mini,string(argv[1]))){
 		cout << "could not load " << string(argv[1]) << '\t';
-		return 0;	
+		return 0;
 	}
-	
+
 	else if( argc == 2){
 		cout << "in_file\tk\tw\tcount_positions(A)\tcount_kmers(B)\tkmer_density\tavg_position_per_kmer\tmed_positions_per_kmer\tsize_positions\tsize_table\tsize_ind\tsize_rs\tsize_sum\n";
 		analyse_kmi(argv,mini);
 		cout << endl;
-	}		
+	}
 	else if( argc == 3){
 		cout << "in_file\tk\tw\tcount_positions(A)\tcount_kmers(B)\tkmer_density\tavg_position_per_kmer\tmed_positions_per_kmer\tsize_positions\tsize_table\tsize_ind\tsize_rs\tsize_sum\t";
 		cout << "fq_fname\tmed_correct_hints\tmed_hints\tavg_correct_hints\tavg_hints\tcount_no_correct_hints\tcount_no_hint\n";
-		analyse_kmi(argv,mini);		
+		analyse_kmi(argv,mini);
 		cout << '\t';
-		analyse_kmi_samples(argv,mini);	
+		analyse_kmi_samples(argv,mini);
 		cout << endl;
 	}
-	else 
-		cout << "too many Arguments" << endl; 
-	
+	else
+		cout << "too many Arguments" << endl;
 	return 0;
 }
-	     
-	     

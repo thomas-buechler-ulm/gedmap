@@ -73,12 +73,12 @@ struct minimizer_index{
 	uint32_t w;
 	
 	sd_vector<> contained; //EF CODING
-	sd_vector<> mult; //EF CODING
+	bit_vector mult; 
 	
 	int_vector<0> start; //EF CODING??
 	
 	rank_support_sd<> contained_rs;
-	rank_support_sd<> mult_rs;
+	rank_support_v<> mult_rs;
 	
 	int_vector<0> pos_sing;
 	int_vector<0> pos_mult;
@@ -250,6 +250,9 @@ struct minimizer_builder{
 			i += count;
 		}		
 		
+		
+		cout << kmers << "/" << n << " " << mult_kmer  << "/" << kmers << endl;
+		
 		cout << "Generate index"<< endl;
 		
 		minimizer_index index = minimizer_index();
@@ -264,7 +267,7 @@ struct minimizer_builder{
 		sdsl::int_vector_buffer<0> start_buf(fn_tmp_start,   ios::out|ios_base::trunc, 100*MB, start_width );
 		
 		sd_vector_builder contained_b(n,kmers);
-		sd_vector_builder mult_b(kmers,mult_kmer);
+		index.mult = int_vector<1>(kmers,0,1);
 		
 		i = 0;
 		uint64_t pos_mul_pointer	= 0;
@@ -286,7 +289,7 @@ struct minimizer_builder{
 				if(count == 1){
 					pos_sing.push_back(kmer_pos[i++].second);
 				}else{
-					mult_b.set(contained_counter);
+					index.mult[contained_counter] = 1;
 					start_buf.push_back(pos_mul_pointer);
 					while(count-- > 0) pos_mult[pos_mul_pointer++] =  kmer_pos[i++].second;
 				}
@@ -315,7 +318,6 @@ struct minimizer_builder{
 		remove(fn_key_val_buf.c_str());
 		
 		index.contained	= sd_vector<>(contained_b);
-		index.mult	= sd_vector<>(mult_b);
 		
 		util::init_support(index.contained_rs,&index.contained);
 		util::init_support(index.mult_rs,&index.mult);

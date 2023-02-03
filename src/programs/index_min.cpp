@@ -53,8 +53,9 @@ int main(int argc,  char** argv){
 	if(!store_to_file<minimizer_index>(index, min_fname))	print_error("Storing of index failed!");
 	else	{
 		print_row("Index written.");
-		print_row("Number of positions in index ", to_string(index.positions.size()) + " (" + to_string(index.positions.width()) +")" );
-		print_row("Number of k-mers in index ", to_string(index.table.size()) + " (" + to_string(index.table.width()) +")");
+		print_row("Number of single positions in index ", to_string(index.pos_sing.size()) + " (width=" + to_string(index.pos_sing.width()) +")" );
+		print_row("Number of mult positions in index ", to_string(index.pos_mult.size()) + " (width=" + to_string(index.pos_mult.width()) +")" );
+		print_row("Number of k-mers in index ", to_string(index.mult.size()));
 
 	}
 	tv[tv_STORING].stop();

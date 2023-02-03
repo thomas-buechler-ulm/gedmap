@@ -71,38 +71,48 @@ uint64_t hash_inverse(uint64_t key) {
 struct minimizer_index{	
 	uint32_t k;
 	uint32_t w;
-	int_vector<0> positions;
-	int_vector<0> table;
-	sdsl::bit_vector    indicator;
-	sdsl::rank_support_v<> ind_rs;
-	bool sparse;
-	sd_vector<> indicator_sd;
-	rank_support_sd<> ind_rs_sd;
+	
+	sd_vector<> contained; //EF CODING
+	sd_vector<> mult; //EF CODING
+	
+	int_vector<0> start; //EF CODING??
+	
+	rank_support_sd<> contained_rs;
+	rank_support_sd<> mult_rs;
+	
+	int_vector<0> pos_sing;
+	int_vector<0> pos_mult;
+	
 	
 	template<typename kmer_int_type>
 	bool is_in_index(kmer_int_type kmer) const{
-		return (!sparse && indicator[kmer])||(sparse && indicator_sd[kmer]);
+		return (contained[kmer]);
 	}
 	
 	template<typename kmer_int_type>
 	//<begin,size>
-	std::pair<size_t, size_t> boundaries(kmer_int_type kmer){
-		if(!is_in_index(kmer)) return make_pair(0,0);
+	std::pair<size_t, size_t> get_position(kmer_int_type kmer) const{
+		if(!contained[kmer]) return make_pair(0,0);
 		
-		uint64_t x = sparse ? ind_rs_sd(kmer) : ind_rs(kmer);
-		return make_pair(table[x] , table[x+1] - table[x]);
+		uint64_t x = contained_rs(kmer);
+		uint64_t y = mult_rs(x);
+		
+		if(!mult[x]) 
+			return make_pair(pos_sing[x-y],1);
+		else 
+			return make_pair(start[y],start[y+1]-start[y]);
 	}
 	
 	template<typename kmer_int_type>
 	sdsl::int_vector<0> operator()(kmer_int_type kmer) const{
-		if(!is_in_index(kmer)) return sdsl::int_vector<0>(0,0,positions.width());
+		size_t begin, count, i = 0;
+		tie(begin,count) = get_position(kmer);
 		
-		uint64_t x = sparse ? ind_rs_sd(kmer) : ind_rs(kmer);
-		uint64_t first = table[x];
-		uint64_t last = table[x+1];
-		sdsl::int_vector<0> out(last-first,0,positions.width());
-		uint64_t i = 0;
-		while(first < last) out[i++] = positions[first++];
+		if(count == 0)	return sdsl::int_vector<0>(0,0,1);
+		if(count == 1)	return sdsl::int_vector<0>(1,begin,pos_sing.width());
+	
+		sdsl::int_vector<0> out(count,0,pos_mult.width());	
+		while(count --> 0) out[i++] = pos_mult[begin++];
 		return out;
 	}
 	
@@ -114,21 +124,19 @@ struct minimizer_index{
 		sdsl::structure_tree_node *child 			= sdsl::structure_tree::add_child(v, name, sdsl::util::class_name(*this));
 		size_type written_bytes 	= 0;
 		
-		sdsl::int_vector<32> constants = sdsl::int_vector<32>(3,k,32);
+		sdsl::int_vector<32> constants = sdsl::int_vector<32>(2,k,32);
 		constants[0] = k;
 		constants[1] = w;
-		constants[2] = sparse;
-		
+				
 		written_bytes += constants	.serialize(out, child, "k_w");
-		written_bytes += positions	.serialize(out, child, "positions");
-		written_bytes += table		.serialize(out, child, "table");
-		if(!sparse){
-			written_bytes += indicator	.serialize(out, child, "ind");
-			written_bytes += ind_rs		.serialize(out, child, "ind_rs");
-		}else{
-			written_bytes += indicator_sd	.serialize(out, child, "ind_sd");
-			written_bytes += ind_rs_sd	.serialize(out, child, "ind_rs_sd");
-		}
+		written_bytes += contained	.serialize(out, child, "contained");
+		written_bytes += mult		.serialize(out, child, "mult");
+		written_bytes += start		.serialize(out, child, "start");
+		written_bytes += contained_rs	.serialize(out, child, "contained_rs");
+		written_bytes += mult_rs	.serialize(out, child, "mult_rs");
+		written_bytes += pos_sing	.serialize(out, child, "pos_sing");
+		written_bytes += pos_mult	.serialize(out, child, "pos_mult");
+		
 		sdsl::structure_tree::add_size(child, written_bytes);
 		return written_bytes;
 	}
@@ -139,61 +147,14 @@ struct minimizer_index{
 		constants	.load(in);
 		k		= constants[0];
 		w		= constants[1];
-		sparse		= constants[2];
-		positions	.load(in);
-		table		.load(in);
-		if(!sparse){
-			indicator	.load(in);
-			ind_rs		.load(in,&indicator);
-		}else{
-			indicator_sd	.load(in);
-			ind_rs_sd	.load(in,&indicator_sd);
-		}
+		contained	.load(in);
+		mult		.load(in);
+		start		.load(in);
+		contained_rs	.load(in, &contained);
+		mult_rs		.load(in, &mult);
+		pos_sing	.load(in);
+		pos_mult	.load(in);
 	} 
-	/*
-	vector<uint64_t> trim(uint32_t max_positions){	
-		vector<uint64_t> stats(6,0);
-		
-		stats[0] = positions.size();
-		stats[2] = table.size()-1;
-		
-		
-		uint64_t position_pointer = 0;
-		uint64_t table_pointer_new = 0;		
-		uint64_t table_pointer_old = -1;
-		for(uint64_t kmer = 0; kmer < indicator.size(); kmer++){
-			if(!indicator[kmer]) continue;
-			
-			table_pointer_old++;
-			uint64_t kmer_begin = table[table_pointer_old];
-			uint64_t kmer_size  = table[table_pointer_old+1] - kmer_begin;
-			
-			//STATS 
-			if(kmer_size > stats[5]){
-				stats[4] = kmer;
-				stats[5] = kmer_size;
-			}
-			
-			if( kmer_size > max_positions ){
-				//ignore kmer
-				indicator[kmer] = 0;
-			}else{
-				//copy positions[kmer_begin, kmer_begin+kmer_size[ to positions[position_pointer,position_pointer+kmer_size[
-				table[table_pointer_new++] = position_pointer;
-				for(uint64_t i = 0; i < kmer_size; i++)
-					positions[position_pointer++] = positions[kmer_begin++];
-			}			
-		}
-		table[table_pointer_new++] = position_pointer; // last entry contains size of positions
-		positions.resize(position_pointer);
-		table.resize(table_pointer_new);
-		util::init_support(ind_rs,&indicator); 
-		
-		stats[1] = positions.size();
-		stats[3] = table.size()-1;
-		
-		return stats;
-	}*/	
 };
 
 struct minimizer_builder{
@@ -227,141 +188,19 @@ struct minimizer_builder{
 				min_ind[pos] = 1;
 		}
 	}
-	/* Instead of sorting -> count and bucket -> random access slows down
-	minimizer_index index2(uint32_t k, uint32_t w, uint32_t t){
-		if(min.size() != min_ind.size()) throw std::runtime_error("minimizer_index index: vectors do not have same size");
-		if(t  > 65534 || t == 0) throw std::runtime_error("minimizer_index index: trim-value has to be in range [1,65534]");
-		
-		minimizer_index index = minimizer_index();
-		index.k = k;
-		index.w = w;
-		index.indicator = sdsl::int_vector<1>(KMER<uint64_t>::number_of_kmers(k),0,1);
-		
-		sdsl::int_vector<32> count_per_kmer = sdsl::int_vector<32>(index.indicator.size(),0,32);
-		
-		cout << "count kmers/ calc indicator" << endl;
-		
-		
-		//count kmers, trim and fill in indicator
-		uint64_t count_of_kmers = 0;
-		uint64_t count_of_positions = 0;
-		uint64_t count_of_kmers_befor_trim = 0;
-		uint64_t count_of_positions_befor_trim = 0;
-		for(uint64_t i = 0; i < min.size(); i++){
-			if( min_ind[i]){ 
-				uint64_t kmer = hash_inverse(min[i]); //kmer is a minimizer
-				count_of_positions_befor_trim++;
-				if(count_per_kmer[kmer] == 0){ //first seen -> mark in index
-					index.indicator[kmer] = 1;
-					count_of_kmers++;
-					count_per_kmer[kmer]++;
-					count_of_positions++;
-					count_of_kmers_befor_trim++;
-				} 
-				else if( count_per_kmer[kmer] == t){ //trim
-					count_per_kmer[kmer] = t+1; //not use count_per_kmer[kmer] anymore
-					index.indicator[kmer] = 0; //trimed, therefor not present in index
-					count_of_kmers--;
-					count_of_positions -= t;
-				}
-				else if( count_per_kmer[kmer] < t ){ //add kmer
-					count_per_kmer[kmer]++;
-					count_of_positions++;
-				}
-				
-			}
-		}		
-		util::init_support(index.ind_rs,&index.indicator); 
-		//transform count_per_kmer to be comulative / tmp table
-		cout << "tmp table" << endl;
-		uint32_t count_smaller_i = 0;
-		for(uint32_t i = 0; i < count_per_kmer.size(); i++ ){
-			if(count_per_kmer[i] > t) count_per_kmer[i] = 0;
-			uint32_t count_i = count_per_kmer[i];
-			count_per_kmer[i] =  count_smaller_i;
-			count_smaller_i += count_i;
-		}
-		cout << "count_smaller_i " << count_smaller_i << endl;
-		cout << "count_per_kmer[count_per_kmer.size()-1] " << count_per_kmer[count_per_kmer.size()-1] << endl;
-		
-		
-// 		cout << "calc table" << endl;
-// 		
-// 		sdsl::int_vector<0>(count_of_kmers+1,0,occpointer_int_width);
-// 		
-// 		
-		
-// 		uint32_t occpointer_int_width = bitsneeded(count_of_positions);
-// 		if(occpointer_int_width % 8 != 0) occpointer_int_width = occpointer_int_width - (occpointer_int_width % 8) + 8;
-// 		index.table = sdsl::int_vector<0>(count_of_kmers+1,0,occpointer_int_width);
-// 		
-// 		//build table
-// 		uint64_t next_kmer_in_table = 1;
-// 		for(uint64_t kmer = 0; kmer < count_per_kmer.size(); kmer++){
-// 			if(index.indicator[kmer]){ //not trimmed and not empty
-// 				index.table[ next_kmer_in_table ] = index.table[ next_kmer_in_table - 1 ] + count_per_kmer[kmer];
-// 				next_kmer_in_table++;
-// 			}
-// 		}
-		
-		
-		cout 	<< "count_of_positions " << count_of_positions << endl
-			<< "count_of_kmers " << count_of_kmers  << endl
-			<< "count_of_positions_befor_trim " << count_of_positions_befor_trim  << endl
-			<< "count_of_kmers_befor_trim"<< count_of_kmers_befor_trim << endl;
-		
-		cout << "fill in positions why?" << endl;
-		
-		
-		//build positions
-// 		count_per_kmer.resize(0);		
-		uint32_t occ_width = bitsneeded(min.size());
-		if(occ_width % 8) occ_width = occ_width + 8 - (occ_width % 8);
-		index.positions = sdsl::int_vector<0>(count_of_positions,0,occ_width);
-		
-		
-		for(uint64_t i = 0; i < min.size(); i++){
-			if( min_ind[i]){ 
-				uint64_t kmer = hash_inverse(min[i]); //kmer is a minimizer
-				if(kmer >= index.indicator.size() || kmer >= count_per_kmer.size()){
-					cout << "kmer " << kmer << " index.indicator.size()  " << index.indicator.size() << " count_per_kmer.size() " << count_per_kmer.size()<< endl;
-				}
-				else
-				if(index.indicator[kmer]){ //not trimmed
-					if(count_per_kmer[kmer] >= index.positions.size() ){
-						cout << "kmer " << kmer << " count_per_kmer[kmer] " << count_per_kmer[kmer]  << " index.positions.size()  " << index.positions.size() <<endl;
-					}else{
-					index.positions[ count_per_kmer[kmer] ] = i;
-					count_per_kmer[kmer] = count_per_kmer[kmer]+1;}
-				}
-			}
-		}
-		
-		exit(0);
-		
-		cout << "adjust table" << endl;
-		
-		
-		for(uint32_t i = index.table.size(); i > 0; i--)
-			index.table[i] = index.table[i-1];
-		index.table[0] = 0;
-		
-		return index;
-		
-	}*/
 	
 	minimizer_index index(uint32_t k, uint32_t w, uint32_t t){
 		string fn_key_val_buf = TMP_DIR+ "/key_val_buf";
-		string fn_tmp_positions = TMP_DIR+ "/tmp_positions";
-		string fn_tmp_table = TMP_DIR+ "/tmp_table";
+		string fn_tmp_pos_sing = TMP_DIR+ "/tmp_positions_single";
+		string fn_tmp_pos_mult = TMP_DIR+ "/tmp_positions_mult";
+		string fn_tmp_start = TMP_DIR+ "/tmp_start";
 		
 		
-		if(min.size() != min_ind.size()) throw std::runtime_error("minimizer_index index: vectors do not have same size");
+		if(min.size() != min_ind.size()) 
+			throw std::runtime_error("minimizer_index index: vectors do not have same size");
 		
-		uint32_t occ_width = bitsneeded(min.size());
+		uint32_t pos_width = bitsneeded(min.size());
 		cout << "Generate key-value pairs" << endl;
-// 		std::vector<std::pair<uint64_t,uint64_t>> kmer_pos;
-		
 		sdsl::int_vector_buffer<64> key_val_buf_out(fn_key_val_buf, ios::out|ios_base::trunc, 100*MB, 64 );
 		uint32_t count_pairs = 0;
 		for(uint64_t i = 0; i < min.size(); i++){
@@ -372,81 +211,67 @@ struct minimizer_builder{
 			}
 		}
 		key_val_buf_out.close();
+		uint32_t start_width = bitsneeded(count_pairs);
+				
 		
 		
-// 		std::vector<uint64_t>().swap(min); //DELETE MIN / MIN_IND
+// 		//DELETE MIN / MIN_IND
 		min= sdsl::int_vector<64>(0,0,64);
 		min_ind = sdsl::int_vector<1>(0,0,1);
 		
+		cout << "Read key-value pairs" << endl;
 		sdsl::int_vector_buffer<64> key_val_buf_in(fn_key_val_buf, ios::in, 100*MB, 64 );
 		std::vector<std::pair<uint64_t,uint64_t>> kmer_pos(count_pairs);
-		for(uint32_t i = 0; i < count_pairs; i++){
+		for(uint32_t i = 0; i < count_pairs; i++)
 			kmer_pos[i] = std::make_pair( key_val_buf_in[2*i] ,key_val_buf_in[2*i+1] );
-		}
 		key_val_buf_in.close();
-// 		std::sort(kmer_pos.begin(), kmer_pos.end());
+		
 		cout << "Sort key-value pairs"<< endl;
 		mergeSortParallel(kmer_pos); //sort parallel
 		
 		
-		cout << "Write to index"<< endl;
+		cout << "Analyse key-value pairs"<< endl;
+		
+		uint64_t n = KMER<uint64_t>::number_of_kmers(k);
+		uint64_t kmers = 0, mult_kmer = 0, i = 0;
+		
+		while(i < kmer_pos.size()){
+			uint64_t kmer = kmer_pos[i].first;
+			
+			uint32_t count = 0;
+			while( (i+count) < kmer_pos.size() && kmer == kmer_pos[(i+count)].first) count++;
+			
+			if(t && count > t){ 
+				// trim -> dont count			
+			}else{
+				kmers++;
+				if(count > 1) mult_kmer++;
+			}
+			i += count;
+		}		
+		
+		cout << "Generate index"<< endl;
 		
 		minimizer_index index = minimizer_index();
 		
 		index.k = k;
 		index.w = w;
-		index.sparse = 0;
+		if(pos_width % 8) 	pos_width = pos_width + 8 - (pos_width % 8); //Round up to next multiple of 8
+		if(start_width % 8)	start_width = start_width - (start_width % 8) + 8;
 		
+		sdsl::int_vector_buffer<0> pos_sing(fn_tmp_pos_sing, ios::out|ios_base::trunc, 100*MB, pos_width );
+		sdsl::int_vector_buffer<0> pos_mult(fn_tmp_pos_mult, ios::out|ios_base::trunc, 100*MB, pos_width );
+		sdsl::int_vector_buffer<0> start_buf(fn_tmp_start,   ios::out|ios_base::trunc, 100*MB, start_width );
 		
-		
-		
-		if(occ_width % 8) occ_width = occ_width + 8 - (occ_width % 8); //Round up to next multiple of 8
-		
-// 		index.positions = sdsl::int_vector<0>(kmer_pos.size(),0,occ_width);
-		sdsl::int_vector_buffer<0> positions_buf(fn_tmp_positions, ios::out|ios_base::trunc, 100*MB, occ_width );
-		
-		uint32_t occpointer_int_width = bitsneeded(kmer_pos.size());
-		if(occpointer_int_width % 8 != 0) occpointer_int_width = occpointer_int_width - (occpointer_int_width % 8) + 8;
-		
-// 		index.table = sdsl::int_vector<0>(KMER<uint64_t>::number_of_kmers(k)+1,0,occpointer_int_width);
-		sdsl::int_vector_buffer<0> table_buf(fn_tmp_table, ios::out|ios_base::trunc, 100*MB, occpointer_int_width );
-		
-		sd_vector_builder ind_builder;
-			
-		uint64_t i = 0;
-		uint32_t kmers_in_index = 0;
-		while(i < kmer_pos.size()){ //COUNT ONES IN INDICATOR
-			uint64_t kmer = kmer_pos[i].first;
-			uint32_t count = 0;
-			while( (i+count) < kmer_pos.size() && kmer == kmer_pos[(i+count)].first) count++;
-			if(t && count > t){ // trim
-				i += count;
-			}else{
-				kmers_in_index++;
-				while(count-- > 0) i++;
-			}
-				
-		}
-		{	//CHECK IF TRANSFORM TO SPARSE IS GOOD
-			uint64_t m = kmers_in_index;
-			uint64_t n = KMER<uint64_t>::number_of_kmers(k);
-			uint64_t x = m * (2 + bitsneeded(n/m));
-			if(x < n){
-				cout << "use sparse indicator vector" << endl;
-				index.sparse = true;	
-				ind_builder = sd_vector_builder(n, m);
-			}else{
-				index.sparse = false;	
-				index.indicator = sdsl::bit_vector(n,0,1);	
-			}
-		}
-		
-		
+		sd_vector_builder contained_b(n,kmers);
+		sd_vector_builder mult_b(kmers,mult_kmer);
 		
 		i = 0;
-		uint64_t occ_pointer = 0;
-		uint32_t trimmed_kmers = 0;
-		uint32_t trimmed_positions = 0;
+		uint64_t pos_mul_pointer	= 0;
+		uint64_t contained_counter	= 0;
+		uint64_t trimmed_kmers		= 0;
+		uint64_t trimmed_positions	= 0;
+		
 		while(i < kmer_pos.size()){
 			uint64_t kmer = kmer_pos[i].first;
 			
@@ -458,33 +283,43 @@ struct minimizer_builder{
 				trimmed_positions += count;
 				i += count;
 			}else{
-				if(!index.sparse) index.indicator[kmer] = 1;
-				else ind_builder.set(kmer);
-				table_buf.push_back(occ_pointer);
-				while(count-- > 0) positions_buf[occ_pointer++] =  kmer_pos[i++].second;
+				if(count == 1){
+					pos_sing.push_back(kmer_pos[i++].second);
+				}else{
+					mult_b.set(contained_counter);
+					start_buf.push_back(pos_mul_pointer);
+					while(count-- > 0) pos_mult[pos_mul_pointer++] =  kmer_pos[i++].second;
+				}
+				contained_b.set(kmer);
+				contained_counter++;
 			}
 		}
 		
 		cout << "(trimmed kmers " << trimmed_kmers << ')'<< endl;
 		cout << "(trimmed positions " << trimmed_positions << ')' << endl;
 		
-		table_buf.push_back(occ_pointer);
-		table_buf.close();
-		positions_buf.close();
+		start_buf.push_back(pos_mul_pointer);
+		start_buf.close();
+		pos_sing.close();
+		pos_mult.close();
+		
 		std::vector<std::pair<uint64_t,uint64_t>>().swap(kmer_pos);
 		
-		load_from_file(index.positions,fn_tmp_positions);
-		load_from_file(index.table,fn_tmp_table);
+		load_from_file(index.start,fn_tmp_start);
+		load_from_file(index.pos_sing,fn_tmp_pos_sing);
+		load_from_file(index.pos_mult,fn_tmp_pos_mult);
 		
-		remove(fn_tmp_positions.c_str());
-		remove(fn_tmp_table.c_str());
+		remove(fn_tmp_start.c_str());
+		remove(fn_tmp_pos_sing.c_str());
+		remove(fn_tmp_pos_mult.c_str());
 		remove(fn_key_val_buf.c_str());
 		
-		if(!index.sparse) util::init_support(index.ind_rs,&index.indicator);
-		else{
-			index.indicator_sd = sd_vector<>(ind_builder);
-			util::init_support(index.ind_rs_sd,&index.indicator_sd);
-		}; 
+		index.contained	= sd_vector<>(contained_b);
+		index.mult	= sd_vector<>(mult_b);
+		
+		util::init_support(index.contained_rs,&index.contained);
+		util::init_support(index.mult_rs,&index.mult);
+		
 		return index;
 	}
 };
@@ -497,9 +332,9 @@ std::ostream& operator<< (std::ostream& os, const minimizer_index& m){
 	os << "w = " << m.w << endl;
 	
 	uint64_t x = -1;
-	for(size_t kmer = 0; kmer < m.indicator.size(); kmer++){
+	for(size_t kmer = 0; kmer < m.contained.size(); kmer++){
 		KMER<uint64_t> km(kmer,m.k);
-		if(m.indicator[kmer]) {
+		if(m.contained[kmer]) {
 			x++;
 			cout << km.get_kmer() << ":" << m(kmer) << endl;
 			

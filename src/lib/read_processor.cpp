@@ -240,14 +240,17 @@ struct fasta_read{
 		for(auto it = kmer_pairs.begin(); it != kmer_pairs.end(); it++){
 			int_type k = get<0>(*it);
 			size_t begin, count;
-			tie(begin,count) = mini.boundaries(k);
+			tie(begin,count) = mini.get_position(k);
 			if(count > 0){
 				uint64_t old_size = pos_pairs.size();
 				pos_pairs.resize(old_size + count);
-
+				
 				//COPY VALUES FROM KMI
-				for( uint32_t j  = 0; j < count; j++)
-					pos_pairs[old_size + j] = make_pair(mini.positions[begin + j], get<1>(*it));
+				if(count == 1)
+					pos_pairs[old_size] = make_pair(begin, get<1>(*it));
+				else
+					for( uint32_t j  = 0; j < count; j++)
+						pos_pairs[old_size + j] = make_pair(mini.pos_mult[begin + j], get<1>(*it));
 				assert(std::is_sorted(pos_pairs.begin() + old_size, pos_pairs.begin() + old_size + count));
 
 				boundaries[b_i++] = pos_pairs.size();

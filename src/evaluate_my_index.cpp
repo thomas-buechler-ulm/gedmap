@@ -34,29 +34,21 @@ size_t med(vector<uint32_t> & v, int count){
 	return med;
 }
 
-void analyse_kmi(char **argv, gedmap_mini::minimizer_index & mini){
-
-	vector<uint32_t> occs = vector<uint32_t>(200,0);
-
-	for(size_t i = 1; i < mini.table.size(); i++){
-		int o =  mini.table[i] - mini.table[i-1];
-		if (o > 199) o = 199;
-		occs[o]++;
-	}
-
+void analyse_kmi(char **argv, gedmap_mini::minimizer_index & mini){		
 	cout << argv[1] << '\t'
 	     << mini.k << '\t'
 	     << mini.w << '\t'
-	     << mini.positions.size() << '\t'
-	     << mini.table.size()-1 << '\t'
-	     << ((mini.table.size()-1)/(double)mini.indicator.size())*100 << '\t'
-	     << (mini.positions.size()/ (double) (mini.table.size()-1)) << '\t'
-	     << (med(occs,(mini.table.size()-1)/2 ) ) << '\t'
-	     << (size_in_bytes(mini.positions)) << '\t'
-	     << (size_in_bytes(mini.table)) << '\t'
-	     << (size_in_bytes(mini.indicator)+size_in_bytes(mini.indicator_sd)) << '\t'
-	     << (size_in_bytes(mini.ind_rs)+size_in_bytes(mini.ind_rs_sd)) << '\t'
-	     << (size_in_bytes(mini.positions) + size_in_bytes(mini.table) + size_in_bytes(mini.indicator)+size_in_bytes(mini.indicator_sd) + size_in_bytes(mini.ind_rs)+size_in_bytes(mini.ind_rs_sd));
+	     << mini.pos_sing.size() << '\t'
+	     << mini.pos_mult.size() << '\t'
+	     << mini.mult.size() << '\t'
+	     << (mini.mult.size()/(double)mini.contained.size())*100 << '\t'
+	     << ((mini.pos_sing.size()+mini.pos_sing.size())/ (double) (mini.mult.size())) << '\t'
+	     << (size_in_bytes(mini.pos_sing)) << '\t'
+	     << (size_in_bytes(mini.pos_mult)) << '\t'
+	     << (size_in_bytes(mini.start)) << '\t'
+	     << (size_in_bytes(mini.contained)+size_in_bytes(mini.contained_rs)) << '\t'
+	     << (size_in_bytes(mini.mult)+size_in_bytes(mini.mult_rs)) << '\t'
+	     << (size_in_bytes(mini.pos_sing) + size_in_bytes(mini.pos_mult) + size_in_bytes(mini.start)+size_in_bytes(mini.contained) + size_in_bytes(mini.mult)+size_in_bytes(mini.contained_rs)+size_in_bytes(mini.mult_rs));
 }
 
 
@@ -140,19 +132,23 @@ int main(int argc, char** argv){
 	}
 
 	gedmap_mini::minimizer_index mini;
-	if(!sdsl::load_from_file<gedmap_mini::minimizer_index>(mini,string(argv[1]))){
-		cout << "could not load " << string(argv[1]) << '\t';
-		return 0;
-	}
-
-	else if( argc == 2){
-		cout << "in_file\tk\tw\tcount_positions(A)\tcount_kmers(B)\tkmer_density\tavg_position_per_kmer\tmed_positions_per_kmer\tsize_positions\tsize_table\tsize_ind\tsize_rs\tsize_sum\n";
+	
+	if( argc == 2){
+		cout << "in_file\tk\tw\tcount_positions_sing\tcount_positions_mult\tcount_kmers\tkmer_density\tavg_position_per_kmer\tsize_pos_sing\tsize_pos_mult\tsize_start\tsize_contained\tsize_mult\tsize_sum\n";
+		if(!sdsl::load_from_file<gedmap_mini::minimizer_index>(mini,string(argv[1]))){
+			cout << "could not load " << string(argv[1]) << '\t';
+			return 0;
+		}
 		analyse_kmi(argv,mini);
 		cout << endl;
 	}
 	else if( argc == 3){
-		cout << "in_file\tk\tw\tcount_positions(A)\tcount_kmers(B)\tkmer_density\tavg_position_per_kmer\tmed_positions_per_kmer\tsize_positions\tsize_table\tsize_ind\tsize_rs\tsize_sum\t";
+		cout << "in_file\tk\tw\tcount_positions_sing\tcount_positions_mult\tcount_kmers\tkmer_density\tavg_position_per_kmer\tsize_pos_sing\tsize_pos_mult\tsize_start\tsize_contained\tsize_mult\tsize_sum\t";
 		cout << "fq_fname\tmed_correct_hints\tmed_hints\tavg_correct_hints\tavg_hints\tcount_no_correct_hints\tcount_no_hint\n";
+		if(!sdsl::load_from_file<gedmap_mini::minimizer_index>(mini,string(argv[1]))){
+			cout << "could not load " << string(argv[1]) << '\t';
+			return 0;
+		}
 		analyse_kmi(argv,mini);
 		cout << '\t';
 		analyse_kmi_samples(argv,mini);

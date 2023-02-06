@@ -164,7 +164,7 @@ $(GEDMAP_DIR)/reads2.in-order.sam: $(MINI) $(READS2)
 	$(gedmap) align  $(GEDS) $(READS2)  $(common_align_params) -o  $(GEDMAP_DIR)/reads2.in-order.sam   $(GEDMAP_PARAMS_READ) -io
 
 ################## EVALUATE INDEX WITH DIFFERENT PARAMETER
-IDX_EVAL_DIR  = /mnt/ssd1/buechler/index_eval_neu
+IDX_EVAL_DIR  = $(GEDMAP_DIR)/eval_indexes/
 IDX_EVAL_T = 0 1000
 IDX_EVAL_W = 2 5 10 20
 IDX_EVAL_K = 10 12 14 16 18 20 22 24

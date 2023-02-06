@@ -75,7 +75,7 @@ struct minimizer_index{
 	sd_vector<> contained; //EF CODING
 	bit_vector mult; 
 	
-	int_vector<0> start; //EF CODING??
+	int_vector<0> start;
 	
 	rank_support_sd<> contained_rs;
 	rank_support_v<> mult_rs;

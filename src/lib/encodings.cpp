@@ -20,16 +20,19 @@ char complement_char(char & c){
 		case 'W': return 'W';
 		case 'Y': return 'R';
 	}
+	[[unlikely]]
 	throw std::invalid_argument("INVALID_UPAC_LETTER in complement_char(): >" + std::string(1,c) + "<");
 }
 
 /** \brief calculates the 5'-3' reverse of a DNA pattern
  *  if complement = false, this just calculates the reverse pattern
  */
-std::string rev_complement(std::string & pattern, bool complement = true){
-  std::string inv = std::string(pattern);
-  for(unsigned int i = 0; i < pattern.length() ; i++)
-    inv[i] = complement?complement_char(pattern[pattern.length() - i - 1]):pattern[pattern.length() - i - 1];
+template<bool complement = true>
+std::string rev_complement(const std::string & pattern){
+  std::string inv = pattern;
+  std::reverse(inv.begin(), inv.end());
+  if constexpr (complement)
+    for (char& c : inv) c = complement_char(c);
   return inv;
 }
 

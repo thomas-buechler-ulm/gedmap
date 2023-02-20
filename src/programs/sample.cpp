@@ -113,9 +113,10 @@ int main(int argc,  char** argv){
 	string fname_out;
 	
 	
+	std::ofstream fastq_mp;
 	
 	
-	handle_input(argc,argv,EDS,adj,p2FA,fastq,fname_out);
+	handle_input(argc,argv,EDS,adj,p2FA,fastq,fastq_mp,fname_out);
 	
 	flush_row("Generating: 0%");
 	srand (SEED);

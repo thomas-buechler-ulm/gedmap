@@ -572,7 +572,7 @@ void handle_input(int argc,  char**& argv, linear_eoc_type & eoc, string & EDS, 
 
 			value = argv[i++];
 
-			if("-tmp" == param)
+			if ("-tmp" == param)
 				TMP_DIR = value;
 			else if ("-o" == param)
 				fname_sam = value;
@@ -633,23 +633,26 @@ void print_help(){
 	using namespace gedmap_align;
 	vector<string> args { "filename of GEDS", "filename of FASTQ" , "filename of MINI"};
 	vector<string> params {
-	"-o     , fname, output will be stored in file fname (DEFAULT = [2]."+FEX_SAM+")",
-	"-2fa    ,.2fa-file , if given this is used to transform GEDS-positions to FA positions",
-	"-a fname,  file name of the adijacency file",
-	"-rc    ,  reversed complement of pattern will be searched, too",
-	"-oa    , only aligned reads will be reported",
-	//"-nc    , don't check for collinearity, when rankin seeds",
-	"-io    , output reads in the same order as in the input (may be a bit slower and with higher memory)",
-	"-mc x  , minimizer count, x minimizers will be looked up per read(DEFAULT x="+to_string(FRAGMENT_COUNT_DEFAULT)+")",
-	"-ws x  , window size of hotspot (DEFAULT x="+to_string(SPOT_SIZE_DEFAULT)+")",
-	"-wh x  , minimum minimizer score (DEFAULT x="+to_string(SPOT_HITS_DEFAULT)+")",
-	"-dd x  , doubt distance, when best alignment has a distance x or greater, go to next round (DEFAULT x="+to_string(DOUBT_DIST_DEFAULT)+")",
-	"-mac x , max number of alignments completely calculated (DEFAULT x="	+to_string(MAX_ALIGNS_C_DEFAULT)+")",
-	"-mat x , max number of alignments tried to calculate (DEFAULT x="	+to_string(MAX_ALIGNS_T_DEFAULT)+")",
-	"-mao x , max number of alignments in output (DEFAULT x="		+to_string(MAX_ALIGNS_O_DEFAULT)+")",
-	"-d x   , max distance in alignment (DEFAULT x="			+to_string(MAX_DIST_DEFAULT)+")",
-	"-tmp tmp_dir , to change DEFAULT tmp direcoty from /tmp to tmp_dir",
-	"-tc x , maximum number of threads used per index copy (DEFAULT uses as many as avaiable)"
+	"-o            , fname, output will be stored in file fname (DEFAULT = [2]."+FEX_SAM+")",
+	"-mp           , filename of FASTQ containing the mates (optional, presence indicates paired-end mode)",
+	"-fragment_mean, mean length of fragment in paired-end mode (ignored if -mp is not present, DEFAULT=" + std::to_string(PE_FRAGMENT_LENGTH) + ")",
+	"-mam x        , max number of alignments used for pairing (DEFAULT x="	+to_string(MAX_ALIGNS_M_DEFAULT)+")",
+	"-2fa          , .2fa-file , if given this is used to transform GEDS-positions to FA positions",
+	"-a fname      ,  file name of the adijacency file",
+	"-rc           ,  reversed complement of pattern will be searched, too",
+	"-oa           , only aligned reads will be reported",
+	//"-nc           , don't check for collinearity, when rankin seeds",
+	"-io           , output reads in the same order as in the input (may be a bit slower and with higher memory)",
+	"-mc x         , minimizer count, x minimizers will be looked up per read(DEFAULT x="+to_string(FRAGMENT_COUNT_DEFAULT)+")",
+	"-ws x         , window size of hotspot (DEFAULT x="+to_string(SPOT_SIZE_DEFAULT)+")",
+	"-wh x         , minimum minimizer score (DEFAULT x="+to_string(SPOT_HITS_DEFAULT)+")",
+	"-dd x         , doubt distance, when best alignment has a distance x or greater, go to next round (DEFAULT x="+to_string(DOUBT_DIST_DEFAULT)+")",
+	"-mac x        , max number of alignments completely calculated (DEFAULT x="	+to_string(MAX_ALIGNS_C_DEFAULT)+")",
+	"-mat x        , max number of alignments tried to calculate (DEFAULT x="	+to_string(MAX_ALIGNS_T_DEFAULT)+")",
+	"-mao x        , max number of alignments in output (DEFAULT x="		+to_string(MAX_ALIGNS_O_DEFAULT)+")",
+	"-d x          , max distance in alignment (DEFAULT x="			+to_string(MAX_DIST_DEFAULT)+")",
+	"-tmp tmp_dir  , to change DEFAULT tmp direcoty from /tmp to tmp_dir",
+	"-tc x         , maximum number of threads used per index copy (DEFAULT uses as many as avaiable)"
 	};
 
 	cout << "'gedmap align' algings reads to the given GEDS and MINIMIZER INDEX" << endl;
@@ -668,7 +671,7 @@ void print_help(){
  * \param [3] filename of FASTQ
  * \param [4] filename of EOC
  */
-void handle_input(int argc,  char**& argv, gedmap_mini::minimizer_index & eoc, string & EDS, adjacency & ADJ, pos_EDS_to_FA_type & p2FA, ifstream & fastq_s, ofstream & o_s){
+void handle_input(int argc,  char**& argv, gedmap_mini::minimizer_index & eoc, string & EDS, adjacency & ADJ, pos_EDS_to_FA_type & p2FA, ifstream & fastq_s, ifstream& fastq_s2, ofstream & o_s){
 	using namespace std;
 
 	string 	fname_EDS;
@@ -690,9 +693,8 @@ void handle_input(int argc,  char**& argv, gedmap_mini::minimizer_index & eoc, s
 		fname_eoc		= argv[4];
 		bool input_error = false;
 
-		for(int i = 5; i < argc;){
+		for(int i = 5; i < argc;) {
 			string param = argv[i++];
-			string value;
 			if("-rc" == param){
 				MAP_RC = true;
 				continue;
@@ -709,9 +711,17 @@ void handle_input(int argc,  char**& argv, gedmap_mini::minimizer_index & eoc, s
 
 			if(i >= argc) throw invalid_argument("in gedmap index: " + missing_value(param));
 
-			value = argv[i++];
+			string value = argv[i++];
 
-			if("-tmp" == param)
+			if ("-mp" == param) { // paired_end
+				fastq_s2.open(value);
+				if (!fastq_s2.is_open()) {
+					throw invalid_argument("in gedmap align: could not open mate pair files -mp " + param);
+				}
+			}
+			else if ("-fragment-mean" == param)
+				PE_FRAGMENT_LENGTH = stoi(value);
+			else if ("-tmp" == param)
 				TMP_DIR = value;
 			else if ("-o" == param)
 				fname_sam = value;
@@ -725,6 +735,8 @@ void handle_input(int argc,  char**& argv, gedmap_mini::minimizer_index & eoc, s
 				DOUBT_DIST = stoi(value);
 			else if("-mac" == param)
 				MAX_ALIGNS_C = parse_uint32_vector(value);
+			else if("-mam" == param)
+				MAX_ALIGNS_M = parse_uint32_vector(value);
 			else if("-mat" == param)
 				MAX_ALIGNS_T = parse_uint32_vector(value);
 			else if("-mao" == param)
@@ -804,7 +816,7 @@ void print_help(){
 /**
  * \param [2] filename of EDS
  */
-void handle_input(int argc,  char**& argv, std::string & EDS, adjacency & adj, pos_EDS_to_FA_type & p2FA, ofstream & o_s, string & fname_out){
+void handle_input(int argc,  char**& argv, std::string & EDS, adjacency & adj, pos_EDS_to_FA_type & p2FA, ofstream & o_s, ofstream& o_s_mp, string & fname_out){
 	using namespace std;
 	using namespace gedmap_sample;
 
@@ -826,7 +838,9 @@ void handle_input(int argc,  char**& argv, std::string & EDS, adjacency & adj, p
 			if(i >= argc) throw invalid_argument("in gedmap sample: " + missing_value(param));
 			std::string value = argv[i++];
 
-			if("-c" == param)
+			if ("-fc" == param)
+				FRAGMENT_LENGTH = stoi(value);
+			else if ("-c" == param)
 				COUNT = stoi(value);
 			else if ("-l" == param)
 				LENGTH = stoi(value);
@@ -856,6 +870,8 @@ void handle_input(int argc,  char**& argv, std::string & EDS, adjacency & adj, p
 		}
 		input_error |= load_string_from_file(fname_EDS, EDS);
 		o_s.open(fname_out);
+		if (FRAGMENT_LENGTH < std::numeric_limits<uint32_t>::max())
+			o_s_mp.open(fname_out + ".2");
 		if(input_error) throw invalid_argument("in gedmap align: " + not_loaded);
 
 	}catch(std::exception& e){

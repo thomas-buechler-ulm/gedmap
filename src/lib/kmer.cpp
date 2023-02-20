@@ -8,12 +8,10 @@
  */
 template<typename interger_type>
 struct KMER{
-	typedef unsigned char uc;
-	
-	static const uc A_CODE = 0;
-	static const uc C_CODE = 1;
-	static const uc G_CODE = 2;
-	static const uc T_CODE = 3;
+	static constexpr uint8_t A_CODE = 0;
+	static constexpr uint8_t C_CODE = 1;
+	static constexpr uint8_t G_CODE = 2;
+	static constexpr uint8_t T_CODE = 3;
 	
 	interger_type content;
 	uint32_t length;
@@ -31,15 +29,16 @@ struct KMER{
 	KMER(const KMER & copy):content(copy.content),length(copy.length){};
 	
 	/** @brief constructor from string*/
-	KMER(const std::string & kmer){
+	KMER(const std::string_view & kmer){
 		content 	= 0;
 		length	= kmer.size();
-		for(uint32_t i = 0; i < kmer.size() ; i++)	{	
+		for (const auto& c : kmer) {
 			content <<= 2;
-			switch(kmer[i]){
+			switch (c) {
 				case 'C': content += C_CODE; break;
 				case 'G': content += G_CODE; break;
-				case 'T': content += T_CODE; break;		
+				case 'T': content += T_CODE; break;
+				// TODO: what if 'N'?
 			}
 		}
 	};
@@ -68,7 +67,7 @@ struct KMER{
 			case 'C': code = C_CODE; break;
 			case 'G': code = G_CODE; break;
 			case 'T': code = T_CODE; break;
-			default:	throw std::invalid_argument("ADD_FRONT: illegal letter ASCII=(" + std::to_string((uint32_t) c) + ")");
+			default: [[unlikely]] throw std::invalid_argument("ADD_FRONT: illegal letter ASCII=(" + std::to_string((uint32_t) c) + ")");
 		}		
 		code <<= (2*length);
 		content += code;
@@ -93,11 +92,12 @@ struct KMER{
 	/** @brief drops the front letter*/
 	void rm_front(){
 		assert(length > 0);
-		interger_type front = content;
-		front >>= (2*length - 2);
-		front <<= (2*length - 2);
-		content -= front;
+		//interger_type front = content;
+		//front >>= (2*length - 2);
+		//front <<= (2*length - 2);
+		//content -= front;
 		length--;
+		content &= (static_cast<interger_type>(1) << (2 * length)) - 1;
 	}
 	
 	
@@ -108,7 +108,7 @@ struct KMER{
 			case 'C': code = C_CODE; break;
 			case 'G': code = G_CODE; break;
 			case 'T': code = T_CODE; break;
-			default:	throw std::invalid_argument("KMER ADD_BACK: illegal letter ASCII=(" + std::to_string((uint32_t) c) + ")");
+			default: [[unlikely]] throw std::invalid_argument("KMER ADD_BACK: illegal letter ASCII=(" + std::to_string((uint32_t) c) + ")");
 		}		
 		content <<= 2;
 		content += code;
@@ -127,7 +127,7 @@ struct KMER{
 		return  number_of_kmers(k)-1;
 	}
 	
-	static interger_type to_id(std::string pattern){
+	static interger_type to_id(std::string_view pattern){
 		KMER kmer(pattern);
 		return kmer.content;
 	}	

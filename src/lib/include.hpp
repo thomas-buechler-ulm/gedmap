@@ -12,3 +12,4 @@
 #include "alignment_table.cpp"
 #include "levinstein.cpp"
 #include "read_processor.cpp"
+#include "align_paired_end.hpp"

@@ -17,17 +17,17 @@ const uint32_t tv_ALL_P  = 8;
 const uint32_t tv_CHA_P  = 9;
 
 
-template<uint8_t t_width, class int_type>
+template<class int_type>
 void paralell_processor( linear_eoc_type & eoc, const std::string & EDS, const adjacency & ADJ, const pos_EDS_to_FA_type & p2FA, std::ifstream & fastq_s, std::ofstream& o_s);
 
-template<uint8_t t_width, class int_type>
+template<class int_type>
 void paralell_processor2( linear_eoc_type & eoc, const std::string & EDS, const adjacency & ADJ, const pos_EDS_to_FA_type & p2FA, std::ifstream & fastq_s, std::ofstream& o_s);
 
-template<uint8_t t_width, class int_type>
-std::vector<fasta_read<t_width,int_type>> read_batch(std::ifstream & fastq_s);
+template<class int_type>
+std::vector<fasta_read<int_type>> read_batch(std::ifstream & fastq_s);
 
-template<uint8_t t_width, class int_type>
-fasta_read<t_width,int_type> get_read_from_stream(std::ifstream & fastq_s);
+template<class int_type>
+fasta_read<int_type> get_read_from_stream(std::ifstream & fastq_s);
 
 int main(int argc,  char** argv){
 	using namespace gedmap_io;
@@ -100,10 +100,10 @@ int main(int argc,  char** argv){
 	const uint32_t int_width = bitsneeded(EDS.size());
 
 	// DIFFERENTIATE BETWEEN INTEGER SIZES
-	if		(int_width <=  8 ) paralell_processor2< 8, uint8_t>(eoc, EDS, ADJ, p2FA, fastq_in_stream, out_stream);
-	else if	(int_width <= 16 ) paralell_processor2<16,uint16_t>(eoc, EDS, ADJ, p2FA, fastq_in_stream, out_stream);
-	else if	(int_width <= 32 ) paralell_processor2<32,uint32_t>(eoc, EDS, ADJ, p2FA, fastq_in_stream, out_stream);
-	else if	(int_width <= 64 ) paralell_processor2<64,uint64_t>(eoc, EDS, ADJ, p2FA, fastq_in_stream, out_stream);
+	if		(int_width <=  8 ) paralell_processor2< uint8_t>(eoc, EDS, ADJ, p2FA, fastq_in_stream, out_stream);
+	else if	(int_width <= 16 ) paralell_processor2<uint16_t>(eoc, EDS, ADJ, p2FA, fastq_in_stream, out_stream);
+	else if	(int_width <= 32 ) paralell_processor2<uint32_t>(eoc, EDS, ADJ, p2FA, fastq_in_stream, out_stream);
+	else if	(int_width <= 64 ) paralell_processor2<uint64_t>(eoc, EDS, ADJ, p2FA, fastq_in_stream, out_stream);
 	else throw runtime_error (" in align main: EDS too long");
 
 	tv[tv_MAP].stop();
@@ -125,20 +125,20 @@ int main(int argc,  char** argv){
  *
  * @return a batch of size  min(BATCH_SIZE, number of left reads in fastq file)
  *
-template<uint8_t t_width, class int_type>
-vector<fasta_read<t_width,int_type>> read_batch(ifstream & fastq_s){
+template<class int_type>
+vector<fasta_read<int_type>> read_batch(ifstream & fastq_s){
 
-	vector<fasta_read<t_width,int_type>> batch (BATCH_SIZE);
+	vector<fasta_read<int_type>> batch (BATCH_SIZE);
 	for(uint32_t r = 0; r < BATCH_SIZE; r++){
 		try{
-			batch[r] = fasta_read<t_width,int_type>(fastq_s);
+			batch[r] = fasta_read<int_type>(fastq_s);
 		}catch(runtime_error & e){
 			//NO READ LEFT
 			batch.resize(r);
 			return batch;
 		}
 		if(MAP_RC){
-			batch[r+1] = fasta_read<t_width,int_type>(batch[r] .id +"_rev",edsm_encode::rev_complement(batch[r].sequence), "");
+			batch[r+1] = fasta_read<int_type>(batch[r] .id +"_rev",edsm_encode::rev_complement(batch[r].sequence), "");
 			r++;
 		}
 	}
@@ -156,7 +156,7 @@ vector<fasta_read<t_width,int_type>> read_batch(ifstream & fastq_s){
  *
  * TODO: replaced by paralell_processor2
  
-template<uint8_t t_width, class int_type>
+template<class int_type>
 void paralell_processor( linear_eoc_type & eoc, const std::string & EDS, const adjacency & ADJ,const pos_EDS_to_FA_type & p2FA, std::ifstream & fastq_s, std::ofstream& o_s){
 
 	if(MAP_RC) BATCH_SIZE *= 2;
@@ -176,7 +176,7 @@ void paralell_processor( linear_eoc_type & eoc, const std::string & EDS, const a
 
 		//READ BATCH FROM FASTQ
 // 		tv[tv_WRT_P].start();
-		vector<fasta_read<t_width,int_type>> batch = read_batch<t_width,int_type>(fastq_s);
+		vector<fasta_read<int_type>> batch = read_batch<int_type>(fastq_s);
 		if(batch.size() == 0) break;
 // 		tv[tv_WRT_P].stop();
 
@@ -293,7 +293,7 @@ void paralell_processor( linear_eoc_type & eoc, const std::string & EDS, const a
  * map read in the index
  * write alignment to sam file
  */
-template<uint8_t t_width, class int_type>
+template<class int_type>
 void paralell_processor2( linear_eoc_type & eoc, const std::string & EDS, const adjacency & ADJ,const pos_EDS_to_FA_type & p2FA, std::ifstream & fastq_s, std::ofstream& o_s){
 
 // 	if(MAP_RC) BATCH_SIZE *= 2;
@@ -312,7 +312,6 @@ void paralell_processor2( linear_eoc_type & eoc, const std::string & EDS, const 
 	uint32_t results	= 0;
 	uint32_t mapped 	= 0;
 	uint32_t count  	= 0;
-	uint32_t k 		= eoc.k;
 	uint32_t batchcount	= 0;
 	uint32_t chances_count	= 0;
 
@@ -326,15 +325,14 @@ void paralell_processor2( linear_eoc_type & eoc, const std::string & EDS, const 
 		if(!MAP_RC){
 			#pragma omp parallel for  schedule(dynamic,10)
 			for(uint32_t r = 0; r < read_count; r++){
-				
-				fasta_read<t_width,int_type> read;
+				fasta_read<int_type> read;
 				bool ok = false;
 				
 				#pragma omp critical
 				{
 					if(fastq_s.good()){
 						try{
-							read = fasta_read<t_width,int_type>(fastq_s);
+							read = fasta_read<int_type>(fastq_s);
 							ok = true;
 						}catch(runtime_error & e){
 							//NO READ LEFT
@@ -347,20 +345,35 @@ void paralell_processor2( linear_eoc_type & eoc, const std::string & EDS, const 
 				
 				uint32_t my_searches_chances = 0;
 				
-				for( uint32_t i = 0;
-				 i < FRAGMENT_COUNT.size()
-				 && (read.alignments.size() == 0 || get<1>(read.alignments[0]) >= DOUBT_DIST); i++){
+				std::vector<alignment<int_type>> alignments;
+				for (size_t i = 0;
+					i < FRAGMENT_COUNT.size() && (alignments.empty() || alignments[0].dist >= DOUBT_DIST);
+					i++)
+				{
 					my_searches_chances++;
-					
-					read.get_fragments(FRAGMENT_COUNT[i], k, eoc.indicator);
-					read.get_positions(eoc);
-					read.find_hotspots(SPOT_SIZE, SPOT_HITS[i],CHECK_COLLI);
-					read.start_aligner(EDS,ADJ,MAX_DIST,MAX_ALIGNS_C,MAX_ALIGNS_T,MAX_ALIGNS_O);
+
+					uint32_t max_dist = MAX_DIST;
+					if (!alignments.empty())
+						max_dist = std::min(max_dist, alignments[0].dist - 1);
+
+					auto hotspots = read_processor::find_hotspots(read, eoc,
+										FRAGMENT_COUNT[i],
+										SPOT_SIZE, SPOT_HITS[i], CHECK_COLLI);
+					read_processor::append_alignments(
+						alignments,
+						read_processor::start_aligner(std::move(hotspots), read,
+										EDS, ADJ,
+										max_dist,
+										MAX_ALIGNS_C, MAX_ALIGNS_T, MAX_ALIGNS_O));
 				}
 				#pragma omp critical
 				{
-					uint32_t res;
-					res = read.write_alignment(o_s,WRITE_FAILURE,p2FA);
+					const auto res = read_processor::write_alignment(
+						std::move(alignments),
+						read,
+						o_s,
+						WRITE_FAILURE,
+						p2FA);
 					results += res;
 					if(res) mapped++;
 					count++;
@@ -373,14 +386,14 @@ void paralell_processor2( linear_eoc_type & eoc, const std::string & EDS, const 
 			#pragma omp parallel for  schedule(dynamic,10)
 			for(uint32_t r = 0; r < read_count; r+=2){
 				
-				fasta_read<t_width,int_type> read;
+				fasta_read<int_type> read;
 				bool ok = false;
 				
 				#pragma omp critical
 				{
 					if(fastq_s.good()){
 						try{
-							read = fasta_read<t_width,int_type>(fastq_s);
+							read = fasta_read<int_type>(fastq_s);
 							ok = true;
 						}catch(runtime_error & e){
 							//NO READ LEFT
@@ -390,27 +403,42 @@ void paralell_processor2( linear_eoc_type & eoc, const std::string & EDS, const 
 				}
 				
 				if(!ok) continue;
-				
 				uint32_t my_searches_chances = 0;
 				
-				for( uint32_t i = 0;
-				 i < FRAGMENT_COUNT.size()
-				 && (read.alignments.size() == 0 || get<1>(read.alignments[0]) >= DOUBT_DIST); i++){
+				vector<alignment<int_type>> alignments;
+				for (size_t i = 0;
+					 i < FRAGMENT_COUNT.size() && (alignments.empty() || alignments[0].dist >= DOUBT_DIST);
+					 i++)
+				{
 					my_searches_chances++;
+
+					uint32_t max_dist = MAX_DIST;
+					if (!alignments.empty())
+						max_dist = std::min(max_dist, alignments[0].dist - 1);
 					
-					fasta_read<t_width,int_type> read_rev = fasta_read<t_width,int_type> (read.id +"_rev",gedmap_encode::rev_complement(read.sequence), "");
-					read.get_fragments(FRAGMENT_COUNT[i], k, eoc.indicator);
-					read_rev.get_fragments(FRAGMENT_COUNT[i], k, eoc.indicator);
-					read.get_positions(eoc);
-					read_rev.get_positions(eoc);
-					read.find_hotspots(SPOT_SIZE, SPOT_HITS[i],CHECK_COLLI);
-					read_rev.find_hotspots(SPOT_SIZE, SPOT_HITS[i],CHECK_COLLI);
-					read.start_aligner(EDS,ADJ,MAX_DIST,MAX_ALIGNS_C,MAX_ALIGNS_T,MAX_ALIGNS_O,read_rev);
+					const auto& read_rev = read.get_rev_compl();
+					auto hotspots     = read_processor::find_hotspots(read, eoc,
+											FRAGMENT_COUNT[i],
+											SPOT_SIZE, SPOT_HITS[i], CHECK_COLLI);
+					auto hotspots_r_c = read_processor::find_hotspots(read_rev, eoc,
+											FRAGMENT_COUNT[i],
+											SPOT_SIZE, SPOT_HITS[i], CHECK_COLLI);
+					read_processor::append_alignments(
+						alignments,
+						read_processor::start_aligner(
+							std::move(hotspots),     read,
+							std::move(hotspots_r_c), read_rev,
+							EDS, ADJ, max_dist,
+							MAX_ALIGNS_C, MAX_ALIGNS_T, MAX_ALIGNS_O));
 				}
 				#pragma omp critical
 				{
-					uint32_t res;
-					res = read.write_alignment(o_s,WRITE_FAILURE,p2FA);
+					const auto res = read_processor::write_alignment(
+						std::move(alignments),
+						read,
+						o_s,
+						WRITE_FAILURE,
+						p2FA);
 					results += res;
 					if(res) mapped++;
 					count++;

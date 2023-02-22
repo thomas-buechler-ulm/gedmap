@@ -23,7 +23,7 @@ constexpr bool try_no_gap_first = true;
 
 constexpr uint8_t gap_continue_cost = 1;
 constexpr uint8_t gap_start_cost = 6;
-constexpr bool variable_gap_costs = true;
+constexpr bool variable_gap_costs = false;
 
 constexpr bool matches(char c, char e) {
 	return e == 'N' || e == c || c == 'N';

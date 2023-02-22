@@ -9,6 +9,14 @@
 
 using namespace std;
 using namespace sdsl;
+	
+template<typename... T>
+struct environment {
+	std::tuple<const T&...> me;
+	environment(const T&... args) : me(args...) {}
+};
+template<typename A, typename Env>
+const A& eget(const Env& env) { return std::get<const A&>(env.me); }
 
 //template<typename int_type>
 //using kmer_pair = named_type< std::pair<int_type,int_type>, struct KmerPairTag >;
@@ -74,6 +82,7 @@ template <typename int_type>
 struct fasta_read;
 
 namespace read_processor {
+
 	using dist_type = uint8_t;
 
 	template< typename int_type >
@@ -378,7 +387,6 @@ namespace read_processor {
 			assert( hotspots[i].eds_pos != hotspots[i-1].eds_pos || hotspots[i].read_pos != hotspots[i-1].read_pos  );
 	#endif
 		//INVERSE SORT BY HITS
-		//	rsort<true>(hotspots.data(), hotspots.data() + hotspots.size(), [] (const auto& v) { return get<2>(v); });
 		sort(hotspots.begin(), hotspots.end(), 
 			[] ( const auto& t1, const auto& t2) { return t1.quality > t2.quality; } );
 		return hotspots;
@@ -394,75 +402,130 @@ namespace read_processor {
 	* @param rev_compl	reverse complement of read
 	* 
 	*/
-	template < typename int_type >
+	struct align_state {
+		size_t i = 0, i_r_c = 0, tries = 0;
+		uint32_t D, D_r_c;
+	};
+	template < typename int_type, typename Environ >
 	std::vector<temp_alignment<int_type>>
 	align(
 		const std::vector<hotspot<int_type>>& hotspots,
 		const fasta_read<int_type>& read,
 		const std::vector<hotspot<int_type>>& hotspots_r_c,
 		const fasta_read<int_type>& read_r_c,
-		const std::string & EDS,
-		const adjacency & adj,
+		const Environ& env,
+		align_state& state,
+		const uint32_t max_a_c, // max alignments calculated
+		const uint32_t max_a_t // max tries
+	) {
+		assert(state.D <= std::numeric_limits<dist_type>::max());
+		assert(state.D_r_c <= std::numeric_limits<dist_type>::max());
+		
+		uint32_t aligns 	= 0;
+		
+		std::vector<temp_alignment<int_type>> tmp_alignments;
+
+		std::vector<bool> solved_already(max_a_t, false);
+
+		//while (aligns < max_a_c
+		//	and state.tries < max_a_t
+		//	and (state.i < hotspots.size() or state.i_r_c < hotspots_r_c.size())
+		//) {
+		//	const bool align_r_c = (state.i == hotspots.size()) // no further read in h_pos_i
+		//			|| (state.i_r_c < hotspots_r_c.size() && (want_both && state.tries > max_a_t
+		//				? (state.i_r_c < state.i)
+		//				: (hotspots[state.i].quality < hotspots_r_c[state.i_r_c].quality))); // or next rev komp hint has more window hits 
+		//	const auto [eds_pos, read_pos] = align_r_c // position in eds and read, respectively
+		//			? std::make_pair(hotspots_r_c[state.i_r_c].eds_pos, hotspots_r_c[state.i_r_c].read_pos)
+		//			: std::make_pair(hotspots    [state.i    ].eds_pos, hotspots    [state.i    ].read_pos);
+		//	auto& m_D = (want_both && align_r_c) ? state.D_r_c : state.D;
+		//	const auto dist = align_r_c
+		//		? align<false, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), eds_pos, read_r_c.sequence, read_r_c.qual, read_pos, 0)
+		//		: align<false, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), eds_pos,     read.sequence,     read.qual, read_pos, 0);
+	
+		//	if (dist.first + dist.second == 0) {
+		//		// ali found
+		//		solved_already[state.tries] = true;
+
+		//		aligns++;
+		//		(want_both && align_r_c ? tmp_alignments_r : tmp_alignments)
+		//			.emplace_back(dist, eds_pos, read_pos, align_r_c, align_r_c ? state.i_r_c : state.i);
+	
+		//		m_D = dist.first + dist.second;
+		//		if (not want_both and m_D < gedmap_align_min::DOUBT_DIST)
+		//			break;
+		//	}
+
+		//	state.tries++;
+		//	(align_r_c ? state.i_r_c : state.i)++;
+		//}
+		
+		if (aligns < max_a_c and std::min(state.D, state.D_r_c) >= gedmap_align_min::DOUBT_DIST)
+		{
+			state.tries = 0;
+			state.i = state.i_r_c = 0;
+
+			while (aligns < max_a_c	// only calculate max_a_c alignments
+				&& state.tries < max_a_t	// only start aligner max_a_t times
+				&& (state.i < hotspots.size() || state.i_r_c < hotspots_r_c.size() ) // another hint left
+			) {
+				const bool align_r_c = (state.i == hotspots.size()) // no further read in h_pos_i
+							|| (state.i_r_c < hotspots_r_c.size() && (hotspots[state.i].quality < hotspots_r_c[state.i_r_c].quality)); // or next rev komp hint has more window hits 
+				if (not solved_already[state.tries])
+				{
+					const auto [eds_pos, read_pos] = align_r_c // position in eds and read, respectively
+							? std::make_pair(hotspots_r_c[state.i_r_c].eds_pos, hotspots_r_c[state.i_r_c].read_pos)
+							: std::make_pair(hotspots    [state.i    ].eds_pos, hotspots    [state.i    ].read_pos);
+					auto& m_D = state.D;
+					const auto dist = align_r_c
+						? align<false, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), eds_pos, read_r_c.sequence, read_r_c.qual, read_pos, m_D)
+						: align<false, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), eds_pos,     read.sequence,     read.qual, read_pos, m_D);
+	
+					if (dist.first + dist.second <= m_D) {
+						// ali found
+						aligns++;
+						tmp_alignments.emplace_back(dist, eds_pos, read_pos, align_r_c, align_r_c ? state.i_r_c : state.i);
+	
+						m_D = dist.first + dist.second;
+						if (m_D < gedmap_align_min::DOUBT_DIST)
+							break;
+					}
+				}
+
+				state.tries++;
+				(align_r_c ? state.i_r_c : state.i)++;
+			}
+		}
+
+		// TODO: we actually only need the best report_count
+		const auto cmp = [](const temp_alignment<int_type>& lhs, const temp_alignment<int_type>& rhs) { return lhs.get_dist() < rhs.get_dist(); };
+
+	 	sort(tmp_alignments.begin(), tmp_alignments.end(), cmp);
+
+		return tmp_alignments;
+	}
+	template < typename int_type, typename Environ >
+	std::vector<temp_alignment<int_type>>
+	align(
+		const std::vector<hotspot<int_type>>& hotspots,
+		const fasta_read<int_type>& read,
+		const std::vector<hotspot<int_type>>& hotspots_r_c,
+		const fasta_read<int_type>& read_r_c,
+		const Environ& env,
 		uint32_t D,
 		const uint32_t max_a_c, // max alignments calculated
 		const uint32_t max_a_t // max tries
 	) {
-		assert(D <= std::numeric_limits<dist_type>::max());
-		
-		uint32_t aligns 	= 0;
-		uint32_t tries	= 0;
-		uint32_t i 	 	= 0;
-		uint32_t i_r_c	= 0;
-		
-		std::vector<temp_alignment<int_type>> tmp_alignments;
-
-		//if(!alignments.empty() && get<1>(alignments[0]) < D ) D = get<1>(alignments[0]);
-	
-		while (aligns < max_a_c	// only calculate max_a_c alignments
-			&& tries < max_a_t	// only start aligner max_a_t times
-			&& (i < hotspots.size() || i_r_c < hotspots_r_c.size() ) // another hint left
-		) {		
-			bool align_r_c = (i == hotspots.size()) // no further read in h_pos_i
-						|| (i_r_c < hotspots_r_c.size() && hotspots[i].quality < hotspots_r_c[i_r_c].quality); // or next rev komp hint has more window hits 
-			{
-				tries++;
-				const auto [eds_pos, read_pos] = align_r_c // position in eds and read, respectively
-						? std::make_pair(hotspots_r_c[i_r_c].eds_pos, hotspots_r_c[i_r_c].read_pos)
-						: std::make_pair(hotspots    [i    ].eds_pos, hotspots    [i    ].read_pos);
-				const auto dist = align_r_c
-					? align<false, dist_type, uint32_t>(EDS, adj, eds_pos, read_r_c.sequence, read_r_c.qual, read_pos, D)
-					: align<false, dist_type, uint32_t>(EDS, adj, eds_pos,     read.sequence,     read.qual, read_pos, D);
-	
-				if (dist.first + dist.second <= D) {
-					// ali found
-					aligns++;
-					tmp_alignments.emplace_back(dist, eds_pos, read_pos, align_r_c, align_r_c ? i_r_c : i);
-	
-					D = dist.first + dist.second;
-				}
-			}
-			
-			if(align_r_c)
-				i_r_c++;
-			else
-				i++;
-		}
-		//rsort(alignments.data(), alignments.data() + alignments.size(),  [] (const auto& v) { return get<1>(v); });
-		//SORT BY D
-
-		// TODO: we actually only need the best report_count
-	 	sort(tmp_alignments.begin(), tmp_alignments.end(), [](const auto & t1, const auto & t2) { return t1.get_dist() < t2.get_dist(); } );
-		
-		return tmp_alignments;
+		align_state state { .D = D, .D_r_c = D };
+		return align(hotspots, read, hotspots_r_c, read_r_c, env, state, max_a_c, max_a_t);
 	}
 	// finalizes the first max_out alignments
-	template<typename int_type>
+	template<typename int_type, typename Environ>
 	std::vector<alignment<int_type>>
 	finalize_alignments(
 		const fasta_read<int_type>& read,
 		const fasta_read<int_type>& read_r_c,
-		const std::string& EDS,
-		const adjacency & adj,
+		const Environ& env,
 		const std::vector<temp_alignment<int_type>>& tmp,
 		const size_t max_out
 	) {
@@ -470,22 +533,21 @@ namespace read_processor {
 		std::vector<alignment<int_type>> res(num_out);
 		for (size_t i = 0; i < num_out; i++) {
 			auto[cigar, pos] = tmp[i].reverse_compl
-					? align<true, dist_type, uint32_t>(EDS, adj, tmp[i].eds_pos, read_r_c.sequence, read_r_c.qual, tmp[i].read_pos, tmp[i].dist)
-					: align<true, dist_type, uint32_t>(EDS, adj, tmp[i].eds_pos,     read.sequence,     read.qual, tmp[i].read_pos, tmp[i].dist);
+					? align<true, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), tmp[i].eds_pos, read_r_c.sequence, read_r_c.qual, tmp[i].read_pos, tmp[i].dist)
+					: align<true, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), tmp[i].eds_pos,     read.sequence,     read.qual, tmp[i].read_pos, tmp[i].dist);
 			res[i] = alignment<int_type>(std::move(cigar), tmp[i].get_dist(), pos, tmp[i].reverse_compl);
 		}
 		return res;
 	}
 
-	template<typename int_type>
+	template<typename int_type, typename Environ>
 	std::vector<alignment<int_type>>
 	start_aligner(
 		const std::vector<hotspot<int_type>>& hotspots,
 		const fasta_read<int_type>& read,
 		const std::vector<hotspot<int_type>>& hotspots_r_c,
 		const fasta_read<int_type>& read_r_c,
-		const std::string & EDS,
-		const adjacency & adj,
+		const Environ& env,
 		uint32_t D,
 		const uint32_t max_a_c, // max alignments calculated
 		const uint32_t max_a_t, // max tries
@@ -493,18 +555,16 @@ namespace read_processor {
 	) {
 		return finalize_alignments(
 			read, read_r_c,
-			EDS,
-			adj,
-			align(hotspots, read, hotspots_r_c, read_r_c, EDS, adj, D, max_a_c, max_a_t),
+			env,
+			align(hotspots, read, hotspots_r_c, read_r_c, env, D, max_a_c, max_a_t),
 			max_a_o);
 	}
-	template<typename int_type>
+	template<typename int_type, typename Environ>
 	std::vector<alignment<int_type>>
 	start_aligner(
 		const std::vector<hotspot<int_type>>& hotspots,
 		const fasta_read<int_type>& read,
-		const std::string & EDS,
-		const adjacency & adj,
+		const Environ& env,
 		uint32_t D,
 		const uint32_t max_a_c, // max alignments calculated
 		const uint32_t max_a_t, // max tries
@@ -514,9 +574,8 @@ namespace read_processor {
 		std::vector<hotspot<int_type>> hotspots_dummy;
 		return finalize_alignments(
 			read, dummy,
-			EDS,
-			adj,
-			align(hotspots, read, hotspots_dummy, dummy, EDS, adj, D, max_a_c, max_a_t),
+			env,
+			align(hotspots, read, hotspots_dummy, dummy, env, D, max_a_c, max_a_t),
 			max_a_o);
 	}
 
@@ -530,7 +589,7 @@ namespace read_processor {
 		uint32_t fragment_max_count, // get_fragments
 		uint32_t window_size, // find_hotspots
 		uint32_t window_hits, // find_hotspots
-		bool check_col         // find_hotspots
+		bool check_col        // find_hotspots
 	) {
 		auto fragments = get_fragments(read, fragment_max_count, mini);
 		auto pos_pairs = get_positions(std::move(fragments), mini);
@@ -545,7 +604,7 @@ namespace read_processor {
 		uint32_t fragment_max_count, // get_fragments
 		uint32_t window_size, // find_hotspots
 		uint32_t window_hits, // find_hotspots
-		bool check_col         // find_hotspots
+		bool check_col        // find_hotspots
 	) {
 		auto fragments = get_fragments(read, fragment_max_count, eoc.k, eoc.indicator);
 		auto pos_pairs = get_positions(std::move(fragments), eoc);
@@ -728,16 +787,35 @@ struct fasta_read{
 	string	sequence;		// TODO: this should probably not be a string, at least not for seeding
 	string	qual;
 
-	mutable fasta_read<int_type>* m_rev_compl = nullptr;
+	mutable const fasta_read<int_type>* m_rev_compl = nullptr;
+	bool owning = true;
 
-	fasta_read() { }
+	fasta_read() = default;
+
+	fasta_read(const fasta_read&) = delete;
+	fasta_read<int_type>& operator=(fasta_read&& rhs) {
+		if (owning)
+			delete m_rev_compl;
+		id = std::move(rhs.id);
+		sequence = std::move(rhs.sequence);
+		qual = std::move(rhs.qual);
+		owning = rhs.owning;
+		m_rev_compl = rhs.m_rev_compl; rhs.m_rev_compl = nullptr;
+		return *this;
+	}
+	fasta_read(fasta_read&& rhs) {
+		*this = std::move(rhs);
+	}
 
 	const fasta_read<int_type>& get_rev_compl() const {
 		if (!m_rev_compl) {
-			m_rev_compl = new fasta_read<int_type>(
+			auto tmp = new fasta_read<int_type>(
 				std::string(id),// + "_rev",
 				gedmap_encode::rev_complement(sequence),
 				gedmap_encode::rev_complement<false>(qual));
+			tmp->owning = false;
+			tmp->m_rev_compl = this;
+			m_rev_compl = tmp;
 		}
 		return *m_rev_compl;
 	}
@@ -760,64 +838,7 @@ struct fasta_read{
 		}
 	}
 	~fasta_read() {
-		delete m_rev_compl;
+		if (owning)
+			delete m_rev_compl;
 	}
 };
-
-/**
-template <uint8_t class int_type>
-template<class eoc_type>
-void fasta_read<int_type>::get_positions_in_batch_eoc(vector<fasta_read<int_type>> & batch, eoc_type & eoc){
-	sys_timer batch_time;
-	batch_time.start();
-	//calc numer of intervals
-	uint32_t kmer_count = 0;
-	for(auto r : batch){
-		assert(r.filled_1);
-		kmer_count += r.kmer_pairs.size();
-	}
-
-	vector<int_type_triple> all_kmers = vector<int_type_triple>(kmer_count);
-
-	uint32_t k = 0;
-	for(uint32_t i = 0; i < batch.size(); i++){
-		for(uint32_t j = 0; j < batch[i].kmer_pairs.size(); j++){
-			all_kmers[k++] =(  make_tuple<>(batch[i].kmer_pairs[j].first, batch[i].kmer_pairs[j].second , i )   );
-		}
-		batch[i].delete_kmer_vectors();
-	}
-
-	for(size_t i = 0; i < batch.size(); i++){
-		batch[i].pos_pairs.reserve(edsm_align::DEFAULT_POSPAIR_CAPACITY);
-	}
-	
-	sort(all_kmers.begin(),
-		all_kmers.end(), 
-		[] ( int_type_triple const& t1, int_type_triple const& t2) -> bool{ return get<0>(t1) < get<0>(t2); } //SORT BY HITS ID
-	);
-
-	
-	int_type sep = eoc[1];
-	size_t eoc_p = 1;
-	int_type eoc_id = 0;
-	int_type i = 0;
-	while(true){
-		
-		eoc_p++;		
-		int_type p = eoc[eoc_p];
-		while(p == sep && eoc_p < eoc.size()){
-			eoc_id++;
-			eoc_p++;
-			p = eoc[eoc_p];
-		}
-		if(eoc_p == eoc.size()) break;			
-			
-		
-		for(; get<0>(all_kmers[i]) < eoc_id && i < all_kmers.size() ; i++);
-		
-		for(size_t j = i; get<0>(all_kmers[j]) == eoc_id; j++)
-			batch[ get<2>(all_kmers[j]) ].pos_pairs.emplace_back( make_pair(p,get<1>(all_kmers[j]) ));
-	}
-}*/
-
-

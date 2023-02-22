@@ -57,6 +57,7 @@ namespace gedmap_align_min{
 	const std::vector<uint32_t> MAX_ALIGNS_C_DEFAULT = {5};
 	const std::vector<uint32_t> MAX_ALIGNS_M_DEFAULT = {1,10};
 	const std::vector<uint32_t> MAX_ALIGNS_T_DEFAULT= {10};
+	const uint32_t MAX_ALIGNS_T_FALLBACK_DEFAULT = 100;
 	const uint32_t MAX_ALIGNS_O_DEFAULT		= 1;
 	const uint32_t THREAD_COUNT_DEFAULT		= omp_get_max_threads();
 	std::vector<uint32_t> FRAGMENT_COUNT	= FRAGMENT_COUNT_DEFAULT;
@@ -68,6 +69,7 @@ namespace gedmap_align_min{
 	std::vector<uint32_t> MAX_ALIGNS_C		= MAX_ALIGNS_C_DEFAULT;
 	std::vector<uint32_t> MAX_ALIGNS_M		= MAX_ALIGNS_M_DEFAULT; // number of alignments used for pairing
 	std::vector<uint32_t> MAX_ALIGNS_T		= MAX_ALIGNS_T_DEFAULT;
+	uint32_t MAX_ALIGNS_T_FALLBACK		= MAX_ALIGNS_T_FALLBACK_DEFAULT;
 	uint32_t MAX_ALIGNS_O				= MAX_ALIGNS_O_DEFAULT;
 	uint32_t THREAD_COUNT				= THREAD_COUNT_DEFAULT;
 	bool IN_ORDER					= false;
@@ -75,6 +77,7 @@ namespace gedmap_align_min{
 	bool MAP_RC						= false;
 	bool CHECK_COLLI					= true;
 	uint32_t PE_FRAGMENT_LENGTH = 700; // default fragment length for paired end mapping
+	bool FALLBACK = false;
 }
 
 //ALIGN

@@ -635,7 +635,9 @@ void print_help(){
 	vector<string> params {
 	"-o            , fname, output will be stored in file fname (DEFAULT = [2]."+FEX_SAM+")",
 	"-mp           , filename of FASTQ containing the mates (optional, presence indicates paired-end mode)",
-	"-fragment_mean, mean length of fragment in paired-end mode (ignored if -mp is not present, DEFAULT=" + std::to_string(PE_FRAGMENT_LENGTH) + ")",
+	"-fragment-mean, mean length of fragment in paired-end mode (ignored if -mp is not present, DEFAULT=" + std::to_string(PE_FRAGMENT_LENGTH) + ")",
+	"-fallback     , fallback for paired-end mapping (ignored if -mp is not present)",
+	"-fmat         , maximum number of alignments tried for fallback (ignored if -mp and -fallback are not present, DEFAULT=" + std::to_string(MAX_ALIGNS_T_FALLBACK_DEFAULT) + ")",
 	"-mam x        , max number of alignments used for pairing (DEFAULT x="	+to_string(MAX_ALIGNS_M_DEFAULT)+")",
 	"-2fa          , .2fa-file , if given this is used to transform GEDS-positions to FA positions",
 	"-a fname      ,  file name of the adijacency file",
@@ -707,6 +709,9 @@ void handle_input(int argc,  char**& argv, gedmap_mini::minimizer_index & eoc, s
 			}else if("-io" == param) {
 				IN_ORDER = true;
 				continue;
+			}else if("-fallback" == param) {
+				FALLBACK = true;
+				continue;
 			}
 
 			if(i >= argc) throw invalid_argument("in gedmap index: " + missing_value(param));
@@ -739,6 +744,8 @@ void handle_input(int argc,  char**& argv, gedmap_mini::minimizer_index & eoc, s
 				MAX_ALIGNS_M = parse_uint32_vector(value);
 			else if("-mat" == param)
 				MAX_ALIGNS_T = parse_uint32_vector(value);
+			else if("-fmat" == param)
+				MAX_ALIGNS_T_FALLBACK = stoi(value);
 			else if("-mao" == param)
 				MAX_ALIGNS_O = stoi(value);
 			else if("-d" == param)

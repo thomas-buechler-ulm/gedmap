@@ -56,11 +56,19 @@ public: // TODO: remove
 			return { down.front() };
 	}
 	std::optional<P> up;
+	inline void insert_up(const T& t, P&& tmp) {
+		//std::cerr << " insert_up: " << t << " : ";
+		//if (!up) std::cerr << "nullopt ";
+		//else std::cerr << eval(*up, t) << ' ';
+		//std::cerr << "   " << eval(tmp, t) << std::endl;
+		if (!up or eval(*up, t) > eval(tmp, t))
+			up = std::move(tmp);
+	}
 	inline void commit_up(const T& t) {
-		while (!q.empty() and q.front().min_x <= t) {
-			P tmp = std::move(q.front()); q.pop_front();
-			if (!up or eval(*up, t) > eval(tmp, t))
-				up = std::move(tmp);
+		while (!q.empty() and q.front().min_x <= t)
+		{
+			insert_up(t, std::move(q.front()));
+			q.pop_front();
 		}
 	}
 	inline std::optional<P> get_up(const T& t) {
@@ -95,6 +103,7 @@ public:
 	using query_result_types = std::tuple<Payload, R, std::pair<Payload, R>>;
 	template< typename Res = std::pair<Payload, R> >
 	std::optional<Res> query(T t) {
+		//std::cerr << " query(" << t << ")  m_shift: " << m_shift << std::endl;
 		t -= m_shift;
 
 		auto res = max_opt(get_down(t), get_up(t), [&](const auto& lhs, const auto& rhs) {
@@ -119,6 +128,12 @@ public:
 		} else {
 			return std::nullopt;
 		}
+	}
+	void add_up(T t, R r, Payload payload) {
+		//std::cerr << " m_shift = " << m_shift << std::endl;
+		commit(t);
+		t -= m_shift;
+		insert_up(t, P { t, r, payload });
 	}
 	void add(T t, R r, Payload payload) {
 		t -= m_shift;

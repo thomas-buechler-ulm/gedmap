@@ -91,11 +91,17 @@ int main(int argc,  char** argv){
  */
 template<class int_type>
 void paralell_processor( gedmap_mini::minimizer_index & mini, const std::string & EDS, const adjacency & ADJ,const pos_EDS_to_FA_type & p2FA, std::ifstream & fastq_s, std::ofstream& o_s){
-	
+
 	if(IN_ORDER){
 		paralell_processor_batch<int_type>(mini,EDS,ADJ,p2FA,fastq_s,o_s);
 		return;
 	}
+
+	environment<
+		gedmap_mini::minimizer_index,
+		std::string, // EDS
+		adjacency,
+		pos_EDS_to_FA_type> env(mini, EDS, ADJ, p2FA);
 	
 	string s;
 	size_t read_count = 0;
@@ -149,7 +155,7 @@ void paralell_processor( gedmap_mini::minimizer_index & mini, const std::string 
 				read_processor::append_alignments(
 					alignments,
 					read_processor::start_aligner(std::move(hotspots), read,
-									EDS, ADJ,
+									env,
 									max_dist,
 									MAX_ALIGNS_C[i], MAX_ALIGNS_T[i], MAX_ALIGNS_O));
 			}
@@ -205,7 +211,7 @@ void paralell_processor( gedmap_mini::minimizer_index & mini, const std::string 
 					read_processor::start_aligner(
 						std::move(hotspots),     read,
 						std::move(hotspots_r_c), read_rev,
-						EDS, ADJ, max_dist,
+						env, max_dist,
 						MAX_ALIGNS_C[i], MAX_ALIGNS_T[i], MAX_ALIGNS_O));
 			}
 			#pragma omp critical
@@ -249,7 +255,12 @@ void paralell_processor_batch( gedmap_mini::minimizer_index & mini, const std::s
 	fastq_s.clear();
 	fastq_s.seekg(0);
 	uint32_t batchsize = 10000;
-	
+
+	environment<
+		gedmap_mini::minimizer_index,
+		std::string, // EDS
+		adjacency,
+		pos_EDS_to_FA_type> env(mini, EDS, ADJ, p2FA);
 
 	gedmap_io::print_row("MAPPING:");
 	uint32_t results	= 0;
@@ -266,10 +277,10 @@ void paralell_processor_batch( gedmap_mini::minimizer_index & mini, const std::s
 		reads.reserve(batchsize);
 		
 		for(uint32_t i = 0; i < batchsize; i++){
-			fasta_read<int_type> read;
 			if(fastq_s.good()){
 				try{
-					reads.push_back(fasta_read<int_type>(fastq_s));
+					fasta_read<int_type> read(fastq_s);
+					reads.emplace_back(std::move(read));
 				}catch(runtime_error & e){
 					//NO READ LEFT
 					run = false;
@@ -302,7 +313,7 @@ void paralell_processor_batch( gedmap_mini::minimizer_index & mini, const std::s
 						alignments[r],
 						read_processor::start_aligner(
 							std::move(hotspots),     reads[r],
-							EDS, ADJ, max_dist,
+							env, max_dist,
 							MAX_ALIGNS_C[i], MAX_ALIGNS_T[i], MAX_ALIGNS_O));
 				}
 			}
@@ -332,7 +343,7 @@ void paralell_processor_batch( gedmap_mini::minimizer_index & mini, const std::s
 						read_processor::start_aligner(
 							std::move(hotspots),     reads[r],
 							std::move(hotspots_r_c), read_rev,
-							EDS, ADJ, max_dist,
+							env, max_dist,
 							MAX_ALIGNS_C[i], MAX_ALIGNS_T[i], MAX_ALIGNS_O));
 				}
 			}

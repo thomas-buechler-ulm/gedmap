@@ -37,9 +37,7 @@ int main(int argc,  char** argv){
 		}
 
 		if(prog == "parse")	return gedmap_parse	::main(argc, argv);
- 		if(prog == "index_kmi")	return gedmap_index_kmi	::main(argc, argv); //older version
  		if(prog == "index")	return gedmap_index_min	::main(argc, argv);
-		if(prog == "align_kmi")	return gedmap_align_kmi	::main(argc, argv); //older version
 		if(prog == "align")	return gedmap_align_min	::main(argc, argv);
 		if(prog == "sample")	return gedmap_sample	::main(argc, argv);
 		

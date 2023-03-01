@@ -212,38 +212,6 @@ namespace read_processor {
 	
 	/**
 	 * @brief queries the fragment positions
-	 * @param eoc the EOC-index
-	 */
-	template< typename int_type >
-	vector<query_position<int_type>>
-	get_positions(
-		const vector<kmer_pair<int_type>>& kmer_pairs,
-		const linear_eoc_type & eoc
-	) {
-		vector<query_position<int_type>> pos_pairs;
-		vector<uint32_t> boundaries(kmer_pairs.size()+1);
-		uint32_t b_i = 0;
-		boundaries[b_i++] = 0;
-		for (const auto&[id, start] : kmer_pairs) {
-			uint32_t begin = eoc.table[id];
-			uint32_t count = eoc.table[id+1] - begin;
-			if(count > 0){
-				const auto old_size = pos_pairs.size();
-				pos_pairs.resize(old_size + count);
-
-				//COPY VALUES FROM KMI
-				for( uint32_t j  = 0; j < count; j++)
-					pos_pairs[old_size + j] = query_position<int_type>(eoc.occurences[begin + j], start) ;
-
-				boundaries[b_i++] = pos_pairs.size();
-			}
-		}
-		boundaries.resize(b_i);
-		multi_merge(pos_pairs.begin(),boundaries);
-		return pos_pairs;
-	}
-	/**
-	 * @brief queries the fragment positions
 	 * @param mini the minimizer index
 	 */
 	template< typename int_type >
@@ -536,22 +504,7 @@ namespace read_processor {
 		auto pos_pairs = get_positions(std::move(fragments), mini);
 		return find_hotspots(std::move(pos_pairs), window_size, window_hits, check_col);
 	}
-	// just chains get_fragments, get_positions and find_hotspots
-	template < typename int_type >
-	vector<hotspot<int_type>>
-	find_hotspots(
-		const fasta_read<int_type>& read,
-		const linear_eoc_type & eoc,
-		uint32_t fragment_max_count, // get_fragments
-		uint32_t window_size, // find_hotspots
-		uint32_t window_hits, // find_hotspots
-		bool check_col         // find_hotspots
-	) {
-		auto fragments = get_fragments(read, fragment_max_count, eoc.k, eoc.indicator);
-		auto pos_pairs = get_positions(std::move(fragments), eoc);
-		return find_hotspots(std::move(pos_pairs), window_size, window_hits, check_col);
-	}
-
+	
 	template< typename int_type >
 	void
 	append_alignments(
@@ -763,61 +716,3 @@ struct fasta_read{
 		delete m_rev_compl;
 	}
 };
-
-/**
-template <uint8_t class int_type>
-template<class eoc_type>
-void fasta_read<int_type>::get_positions_in_batch_eoc(vector<fasta_read<int_type>> & batch, eoc_type & eoc){
-	sys_timer batch_time;
-	batch_time.start();
-	//calc numer of intervals
-	uint32_t kmer_count = 0;
-	for(auto r : batch){
-		assert(r.filled_1);
-		kmer_count += r.kmer_pairs.size();
-	}
-
-	vector<int_type_triple> all_kmers = vector<int_type_triple>(kmer_count);
-
-	uint32_t k = 0;
-	for(uint32_t i = 0; i < batch.size(); i++){
-		for(uint32_t j = 0; j < batch[i].kmer_pairs.size(); j++){
-			all_kmers[k++] =(  make_tuple<>(batch[i].kmer_pairs[j].first, batch[i].kmer_pairs[j].second , i )   );
-		}
-		batch[i].delete_kmer_vectors();
-	}
-
-	for(size_t i = 0; i < batch.size(); i++){
-		batch[i].pos_pairs.reserve(edsm_align::DEFAULT_POSPAIR_CAPACITY);
-	}
-	
-	sort(all_kmers.begin(),
-		all_kmers.end(), 
-		[] ( int_type_triple const& t1, int_type_triple const& t2) -> bool{ return get<0>(t1) < get<0>(t2); } //SORT BY HITS ID
-	);
-
-	
-	int_type sep = eoc[1];
-	size_t eoc_p = 1;
-	int_type eoc_id = 0;
-	int_type i = 0;
-	while(true){
-		
-		eoc_p++;		
-		int_type p = eoc[eoc_p];
-		while(p == sep && eoc_p < eoc.size()){
-			eoc_id++;
-			eoc_p++;
-			p = eoc[eoc_p];
-		}
-		if(eoc_p == eoc.size()) break;			
-			
-		
-		for(; get<0>(all_kmers[i]) < eoc_id && i < all_kmers.size() ; i++);
-		
-		for(size_t j = i; get<0>(all_kmers[j]) == eoc_id; j++)
-			batch[ get<2>(all_kmers[j]) ].pos_pairs.emplace_back( make_pair(p,get<1>(all_kmers[j]) ));
-	}
-}*/
-
-

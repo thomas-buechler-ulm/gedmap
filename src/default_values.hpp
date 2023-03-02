@@ -19,8 +19,8 @@ std::string TMP_DIR 			= TMP_DIR_DEFAULT;
 
 //##############  PARAMETERS ####################
 namespace gedmap_parse{
-	const bool INCLUDE_CNV_DEFAULT	= true;
-	bool INCLUDE_CNV = INCLUDE_CNV_DEFAULT;
+	const bool INCLUDE_SV_DEFAULT	= true;
+	bool INCLUDE_SV = INCLUDE_SV_DEFAULT;
 	const std::string TMP_PARSE_REF_IND	= "/ref_ind.ivb.sdsl";
 	const uint32_t PLAIN_ALT_LIMIT_DEFAULT = 50;
 	uint32_t PLAIN_ALT_LIMIT = PLAIN_ALT_LIMIT_DEFAULT;

@@ -282,7 +282,7 @@ using namespace gedmap_io;
 void print_help(){
 	vector<string> args { "filename of FA", "filename of VCF" , "output filename"};
 	vector<string> params {
-		"-nocnv, do not include CNV entries (Then only and EDS is generated)",
+		"-nosv, do not include structural variants, i.e. copy number variation and other large variation (Then only and EDS is generated)",
 		"-tmp tmp_dir , to set tmp direcoty (DEFAULT tmp_dir="+ TMP_DIR_DEFAULT +")",
 		"-lim l , variants with ref or alt larger than l are handled as structural variants (DEFAULT l="+ to_string(PLAIN_ALT_LIMIT_DEFAULT) +")"};
 
@@ -323,8 +323,8 @@ void handle_input(int argc, char**& argv, string& fname_fa, string& fname_vcf, s
 
 		for(int i = 5; i < argc;){
 			string param = argv[i++];
-			if("-nocnv" == param){
-				gedmap_parse::INCLUDE_CNV = false;
+			if("-nosv" == param){
+				gedmap_parse::INCLUDE_SV = false;
 				continue;
 			}
 

@@ -23,9 +23,6 @@ namespace gedmap_parse{
 		gedsb.build(fname_fa,fname_vcf);
 
 		//WRITE INFO
-		print_row("GEDS stored to:   ", fname_geds);
-		print_row("ADJ stored to:    ", fname_geds + "." + FEX_ADJ);
-		print_row("POS2FA stored to: ", fname_geds + "." + FEX_2FA);
 		dotline();
 		print_row("TIME in total: ", t.stop_and_get() , " s" );
 		dotline();

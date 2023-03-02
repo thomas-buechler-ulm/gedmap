@@ -76,8 +76,11 @@ struct GEDS_builder{
 		gedmap_io::print_row("- unsupported variants",	variant_stats[UNSUPPORTED]);
 		gedmap_io::dotline();
 
-		if(!gedmap_parse::INCLUDE_CNV){
+		if(!gedmap_parse::INCLUDE_SV || (variant_stats[CNV] + variant_stats[SV_INDEL] + variant_stats[BIG_ALT] ) == 0 ){
 			gedmap_io::file_move(fn_tmp_eds,fn_tmp_geds);
+			gedmap_io::print_row("EDS stored to:   ", fn_tmp_geds);
+			sdsl::store_to_file(pos_EDS_to_FA_type(fn_tmp_I, seq_names, seq_start), fn_tmp_geds + "." + FEX_2FA);
+			gedmap_io::print_row("POS2FA stored to: ", fn_tmp_geds + "." + FEX_2FA);
 		}
 		else{
 			t = sys_timer();
@@ -86,18 +89,20 @@ struct GEDS_builder{
 			parse2GEDS();
 			gedmap_io::dotline();
 			gedmap_io::print_row("Time for including SV:", t.stop_and_get(), " s");;
+			gedmap_io::dotline();
+			gedmap_io::print_row("GEDS stored to:   ", fn_tmp_geds);
+			sdsl::store_to_file(adjacency(GEDS_edges)     , fn_tmp_geds + "." + FEX_ADJ);
+			gedmap_io::print_row("ADJ stored to:    ", fn_tmp_geds + "." + FEX_ADJ);
+			sdsl::store_to_file(pos_EDS_to_FA_type(fn_tmp_II, seq_names, seq_start), fn_tmp_geds + "." + FEX_2FA);
+			gedmap_io::print_row("POS2FA stored to: ", fn_tmp_geds + "." + FEX_2FA);
 		}
 
-
-		sdsl::store_to_file(pos_EDS_to_FA_type(fn_tmp_II, seq_names, seq_start), fn_tmp_geds + "." + FEX_2FA);
-		sdsl::store_to_file(adjacency(GEDS_edges)     , fn_tmp_geds + "." + FEX_ADJ);
-
 		//CLEANUP
-		gedmap_io::file_remove(fn_tmp_eds);
-		//gedmap_io::file_remove(fn_tmp_geds);
-		gedmap_io::file_remove(fn_tmp_I);
-		gedmap_io::file_remove(fn_tmp_II);
-		gedmap_io::file_remove(fn_tmp_V);
+		gedmap_io::file_remove_silent(fn_tmp_eds);
+		//gedmap_io::file_remove(fn_tmp_geds); THIS IS THE GEDS STRING
+		gedmap_io::file_remove_silent(fn_tmp_I);
+		gedmap_io::file_remove_silent(fn_tmp_II);
+		gedmap_io::file_remove_silent(fn_tmp_V);
 	}
 };
 
@@ -136,7 +141,7 @@ void GEDS_builder::parse2EDS(){ //TODO LIMIT
 		}
 
 
-		if( (vcfl.TYPE & vcf_line::BIG_ALT_TYPE || vcfl.TYPE & vcf_line::CNV_TYPE) && gedmap_parse::INCLUDE_CNV){
+		if( (vcfl.TYPE & vcf_line::BIG_ALT_TYPE || vcfl.TYPE & vcf_line::CNV_TYPE) && gedmap_parse::INCLUDE_SV){
 			std::pair<std::vector<node_split>,std::vector<edge_type>> nodes_and_edges = vcfl.get_pos_and_edges();
 			for(auto ns : nodes_and_edges.first)  insert_positions.back().insert(ns);
 			for(auto e  : nodes_and_edges.second) EDS_edges.back().push_back(e);

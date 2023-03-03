@@ -233,38 +233,6 @@ namespace read_processor {
 	
 	/**
 	 * @brief queries the fragment positions
-	 * @param eoc the EOC-index
-	 */
-	template< typename int_type >
-	vector<query_position<int_type>>
-	get_positions(
-		const vector<kmer_pair<int_type>>& kmer_pairs,
-		const linear_eoc_type & eoc
-	) {
-		vector<query_position<int_type>> pos_pairs;
-		vector<uint32_t> boundaries(kmer_pairs.size()+1);
-		uint32_t b_i = 0;
-		boundaries[b_i++] = 0;
-		for (const auto&[id, start] : kmer_pairs) {
-			uint32_t begin = eoc.table[id];
-			uint32_t count = eoc.table[id+1] - begin;
-			if(count > 0){
-				const auto old_size = pos_pairs.size();
-				pos_pairs.resize(old_size + count);
-
-				//COPY VALUES FROM KMI
-				for( uint32_t j  = 0; j < count; j++)
-					pos_pairs[old_size + j] = query_position<int_type>(eoc.occurences[begin + j], start) ;
-
-				boundaries[b_i++] = pos_pairs.size();
-			}
-		}
-		boundaries.resize(b_i);
-		multi_merge(pos_pairs.begin(),boundaries);
-		return pos_pairs;
-	}
-	/**
-	 * @brief queries the fragment positions
 	 * @param mini the minimizer index
 	 */
 	template< typename int_type >
@@ -614,21 +582,6 @@ namespace read_processor {
 	) {
 		auto fragments = get_fragments(read, fragment_max_count, mini);
 		auto pos_pairs = get_positions(std::move(fragments), mini);
-		return find_hotspots(std::move(pos_pairs), window_size, window_hits, check_col);
-	}
-	// just chains get_fragments, get_positions and find_hotspots
-	template < typename int_type >
-	vector<hotspot<int_type>>
-	find_hotspots(
-		const fasta_read<int_type>& read,
-		const linear_eoc_type & eoc,
-		uint32_t fragment_max_count, // get_fragments
-		uint32_t window_size, // find_hotspots
-		uint32_t window_hits, // find_hotspots
-		bool check_col        // find_hotspots
-	) {
-		auto fragments = get_fragments(read, fragment_max_count, eoc.k, eoc.indicator);
-		auto pos_pairs = get_positions(std::move(fragments), eoc);
 		return find_hotspots(std::move(pos_pairs), window_size, window_hits, check_col);
 	}
 

@@ -19,17 +19,11 @@ std::string TMP_DIR 			= TMP_DIR_DEFAULT;
 
 //##############  PARAMETERS ####################
 namespace gedmap_parse{
-	const bool INCLUDE_CNV_DEFAULT	= true;
-	bool INCLUDE_CNV = INCLUDE_CNV_DEFAULT;
+	const bool INCLUDE_SV_DEFAULT	= true;
+	bool INCLUDE_SV = INCLUDE_SV_DEFAULT;
 	const std::string TMP_PARSE_REF_IND	= "/ref_ind.ivb.sdsl";
-}
-
-namespace gedmap_index_kmi{
-	const uint32_t MAX_N_IN_SEED_DEFAULT 	= 2;
-	const uint32_t TRIM_DEFAULT		 	= 0;
-	uint32_t MAX_N_IN_SEED 				= MAX_N_IN_SEED_DEFAULT;
-	uint32_t TRIM	 				= TRIM_DEFAULT;
-	uint32_t MAX_THREAD_COUNT			= omp_get_max_threads();
+	const uint32_t PLAIN_ALT_LIMIT_DEFAULT = 50;
+	uint32_t PLAIN_ALT_LIMIT = PLAIN_ALT_LIMIT_DEFAULT;
 }
 
 namespace gedmap_index_min{
@@ -78,40 +72,6 @@ namespace gedmap_align_min{
 	bool CHECK_COLLI					= true;
 	uint32_t PE_FRAGMENT_LENGTH = 700; // default fragment length for paired end mapping
 	bool FALLBACK = false;
-}
-
-//ALIGN
-//SETTINGS with Default values
-namespace gedmap_align_kmi{
-	const std::vector<uint32_t> FRAGMENT_COUNT_DEFAULT{ 3, 10};
-	//const uint32_t SEED_SHIFT_DEFAULT		= 5;
-	//const uint32_t BATCH_SIZE_DEFAULT		= 100000;
-	const uint32_t SPOT_SIZE_DEFAULT		= 500;
-	const std::vector<uint32_t> SPOT_HITS_DEFAULT{ 2, 3};
-	//const uint32_t SPOT_DIST_DEFAULT		= 100; 
-	const uint32_t DOUBT_DIST_DEFAULT		= 3;
-	const uint32_t MAX_DIST_DEFAULT		= 30;
-	const uint32_t MAX_ALIGNS_C_DEFAULT		= 50;
-	const uint32_t MAX_ALIGNS_T_DEFAULT		= 100;
-	const uint32_t MAX_ALIGNS_O_DEFAULT		= 1;
-	//const uint32_t INDEX_COPIES_DEFAULT	= 0;
-	const uint32_t THREAD_COUNT_DEFAULT		= omp_get_max_threads();
-	//uint32_t SEED_SHIFT				= SEED_SHIFT_DEFAULT;
-	std::vector<uint32_t> FRAGMENT_COUNT	= FRAGMENT_COUNT_DEFAULT;
-	//uint32_t BATCH_SIZE				= BATCH_SIZE_DEFAULT;
-	uint32_t SPOT_SIZE				= SPOT_SIZE_DEFAULT;
-	std::vector<uint32_t> SPOT_HITS		= SPOT_HITS_DEFAULT;
-	//uint32_t SPOT_DIST				= SPOT_DIST_DEFAULT; 
-	uint32_t DOUBT_DIST				= DOUBT_DIST_DEFAULT;
-	uint32_t MAX_DIST					= MAX_DIST_DEFAULT;
-	uint32_t MAX_ALIGNS_C				= MAX_ALIGNS_C_DEFAULT;
-	uint32_t MAX_ALIGNS_T				= MAX_ALIGNS_T_DEFAULT;
-	uint32_t MAX_ALIGNS_O				= MAX_ALIGNS_O_DEFAULT;
-	//uint32_t INDEX_COPIES				= INDEX_COPIES_DEFAULT; 
-	uint32_t THREAD_COUNT				= THREAD_COUNT_DEFAULT;
-	bool WRITE_FAILURE				= true;
-	bool MAP_RC						= false;
-	bool CHECK_COLLI					= true;
 }
 
 //SAMPLE

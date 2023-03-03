@@ -23,6 +23,8 @@ constexpr bool try_no_gap_first = true;
 
 constexpr uint8_t gap_continue_cost = 1;
 constexpr uint8_t gap_start_cost = 6;
+constexpr uint32_t max_mismatch_cost = 4;
+constexpr uint32_t min_mismatch_cost = 0;
 constexpr bool variable_gap_costs = false;
 
 constexpr bool matches(char c, char e) {
@@ -68,7 +70,7 @@ template<typename D>
 constexpr auto mismatch_cost_lookup = [] {
 	std::array<D, max_qual + 1 - min_qual> res;
 	for (uint8_t i = min_qual; i <= max_qual; i++)
-		res[i - min_qual] = static_cast<D>(4 * (1.f - wrong_base_prob(i)));
+		res[i - min_qual] = static_cast<D>(min_mismatch_cost + (max_mismatch_cost - min_mismatch_cost) * (1.f - wrong_base_prob(i)));
 	return res;
 }();
 template<typename D, bool match>
@@ -306,10 +308,9 @@ public:
 
 struct nil {}; // because we cant have a variable of type void
 
-// traceback = 0: no traceback, returns type D
-// traceback = 1: traceback, returns a (reversed) operation string (cigar without RLE)
-// traceback = 2: traceback, returns <error, distance from j to read_e in opt. alignment, rev. operation string>
-template<uint8_t traceback = 0,
+// traceback = 0: no traceback, returns type pair<D, PC> // (dist, res_pos)
+// traceback = 1: traceback, returns nothing
+template<bool traceback = false,
 	typename D, // index type for error count
 	typename PC, // iterator type for eds
 	typename RP, // iterator type for read
@@ -317,22 +318,19 @@ template<uint8_t traceback = 0,
 	typename JI, // jump index
 	typename F, // callable for traceback
 	typename R = std::conditional_t< // return type
-		traceback == 0,
-		D,
-		std::conditional_t<traceback == 1, nil, std::tuple<D, PC>>>,
-	typename Tab = Table<D, row_id, traceback != 0>>
+		not traceback,
+		std::pair<D,PC>,
+		nil>,
+	typename Tab = Table<D, row_id, traceback>>
 R align(const JI& jump_index, const PC& j, const PC& j_end, const RP& read_b, const RP& read_e, const QP& qual, D max_err, F f) {
 	static_assert(std::is_unsigned_v<D>);
-	static_assert(traceback <= 2);
 
 	// NOTE: we ignore j -- read_b[0] here and add the possible difference later
 	
 	const size_t read_size = std::distance(read_b, read_e);
 	assert(read_size > 0);
 	if (read_size == 1) {
-		if constexpr (traceback == 0)
-			return 0;
-		else if constexpr (traceback == 1)
+		if constexpr (traceback)
 			return nil{};
 		else
 			return R(0, j);
@@ -341,8 +339,8 @@ R align(const JI& jump_index, const PC& j, const PC& j_end, const RP& read_b, co
 	D res = max_err + 1;
 	PC res_pos = j;
 
-	if (try_no_gap_first && (traceback == 0 || max_err == 0)) { // try alignment with no gaps
-		align_no_indel<traceback == 2, D, PC, RP, QP, JI>(
+	if (try_no_gap_first and (not traceback || max_err == 0)) { // try alignment with no gaps
+		align_no_indel<D, PC, RP, QP, JI>(
 			jump_index,
 			std::next(j), j_end, read_b, qual,
 			read_size,
@@ -351,15 +349,12 @@ R align(const JI& jump_index, const PC& j, const PC& j_end, const RP& read_b, co
 		if (res <= max_err) {
 			if (res == 0) { // TODO: also works for res == mismatch_cost_ (mismatch_cost_ < gap_start_cost)
 				// done
-				if constexpr (traceback == 0)
-					return res;
+				if constexpr (not traceback)
+					return R(res, res_pos);
 				else {
 					for (size_t i = 1; i < read_size; i++)
 						f('=');
-					if constexpr (traceback == 1)
-						return nil{};
-					else
-						return R(res, res_pos);
+					return nil{};
 				}
 			} else {
 				max_err = res;
@@ -367,8 +362,8 @@ R align(const JI& jump_index, const PC& j, const PC& j_end, const RP& read_b, co
 			}
 		} else if (max_err == 0) {
 			// impossible
-			if constexpr (traceback == 0) {
-				return res;
+			if constexpr (not traceback) {
+				return R(res, res_pos);
 			} else {
 				assert(false);
 			}
@@ -412,12 +407,12 @@ R align(const JI& jump_index, const PC& j, const PC& j_end, const RP& read_b, co
 		res, res_col, res_pos,
 		{{0, last_gap_col}}); // last_col (points to col. before cur.)
 	
-	if constexpr (traceback == 0)
-		return res;
+	if constexpr (not traceback)
+		return R(res, res_pos);
 	else {
 		assert(res <= max_err);
 
-		if (traceback == 1) assert(res == max_err);
+		if constexpr (traceback) assert(res == max_err);
 
 		// generate CIGAR string
 
@@ -430,10 +425,7 @@ R align(const JI& jump_index, const PC& j, const PC& j_end, const RP& read_b, co
 			}
 		}
 
-		if constexpr (traceback == 2)
-			return R(res, res_pos);
-		else
-			return nil{};
+		return nil{};
 	}
 }
 
@@ -530,13 +522,13 @@ inline void align_dp(
 	}
 }
 
-template<uint8_t traceback,
+template<bool traceback,
 	typename D, // index type for error count
 	typename PC, // iterator type for eds
 	typename RP, // iterator type for read
 	typename QP, // iterator type for quality
 	typename R, // return type
-	typename Tab = Table<D, row_id, traceback != 0>,
+	typename Tab = Table<D, row_id, traceback>,
 	typename JI> // jump index
 void align(const JI& jump_index,
 		PC j, const PC& j_end, const RP& read_b, const QP& qual,
@@ -697,13 +689,9 @@ void align(const JI& jump_index,
 					// this holds because of the pruning above
 					assert(columns.get(new_cols[0], read_size - 1) < res);
 					res = columns.get(new_cols[0], read_size - 1);
-					if constexpr (traceback != 0) {
+					res_pos = j;
+					if constexpr (traceback)
 						res_col = new_cols[0];
-						if constexpr (traceback == 2) {
-							res_pos = j;
-							static_assert(std::is_same_v< eds_reverse_iterator<std::string_view::const_reverse_iterator>, PC >);
-						}
-					}
 					if (res == 0) return; // optimal solution found
 				}
 
@@ -723,7 +711,7 @@ void align(const JI& jump_index,
 	}
 }
 
-template<bool set_res_pos,
+template<
 	typename D, // index type for error count
 	typename PC, // iterator type for eds
 	typename RP, // iterator type for read
@@ -759,7 +747,7 @@ void align_no_indel(const JI& jump_index,
 			case '#':
 			{
 				for (auto it : jump_index(j)) {
-					align_no_indel<set_res_pos, D, PC, RP, QP, JI>(
+					align_no_indel<D, PC, RP, QP, JI>(
 						jump_index,
 						it, j_end, read_b, qual,
 						read_size,
@@ -853,8 +841,7 @@ void align_no_indel(const JI& jump_index,
 							assert(res > d);
 							res = d;
 							prune(new_pos);
-							if constexpr (set_res_pos)
-								res_pos = j;
+							res_pos = j;
 							if (res == 0) return; // optimal solution found
 						} else
 							new_pos.emplace_back(p, d);
@@ -880,16 +867,16 @@ void align_no_indel(const JI& jump_index,
 
 // when traceback==true, it is assumed that the optimal alignment has exactly
 // max_err errors
-// returns (dist in fwd dir, dist ind backw dir) when traceback == false, and
-// (cigar, start in eds) otherwise
+// returns ((dist in fwd dir, dist ind backw dir), start in eds) when traceback == false, and
+// cigar otherwise
 // NOTE: dist in backwards direction includes read[i], j
 template<bool traceback = false,
 	typename D, // error type
 	typename PC, // index for eds
 	typename ADJ, // adjacency
-	typename R = std::conditional_t<traceback, std::pair<std::string, size_t>, std::pair<D,D>>,
+	typename R = std::conditional_t<traceback, std::string, std::pair<std::pair<D,D>, size_t>>,
 	typename MD = std::conditional_t<traceback, std::pair<D,D>, D>>
-R align(std::string_view eds, const ADJ& adj, PC j, const Read& read, const ReadQual& qual, size_t i, MD max_err) {
+R align_dp(std::string_view eds, const ADJ& adj, PC j, const Read& read, const ReadQual& qual, size_t i, MD max_err) {
 	using namespace edsm_align;
 
 	if (read.size() == 0)
@@ -909,13 +896,13 @@ R align(std::string_view eds, const ADJ& adj, PC j, const Read& read, const Read
 			assert(cost <= max_err.second);
 			max_err.second -= cost;
 		} else {
-			if (cost > max_err) return std::make_pair(0, max_err + 1);
+			if (cost > max_err) return std::make_pair(std::make_pair(0, max_err + 1), size_t{0});
 			max_err -= cost;
 		}
 	}
 	RLE cigar_backward{};
 
-	auto err_b = align<2*traceback, D>(
+	auto err_b = align<traceback, D>(
 		[&](auto it) {
 			assert(*it == '#');
 			const auto i = std::distance(it, eds_reverse_iterator(eds.crend())) - 1;
@@ -939,8 +926,8 @@ R align(std::string_view eds, const ADJ& adj, PC j, const Read& read, const Read
 		cigar_backward.append(match_symb);
 
 	if constexpr (!traceback)
-		if (err_b > max_err)
-			return std::make_pair(0, err_b);
+		if (err_b.first > max_err)
+			return std::make_pair(std::make_pair(0, err_b.first), size_t{0});
 
 	RLE cigar_forward{};
 	const auto err_f = align<traceback, D>(
@@ -960,15 +947,14 @@ R align(std::string_view eds, const ADJ& adj, PC j, const Read& read, const Read
 		eds.cend(),
 		read.cbegin() + i, read.cend(),
 		qual.cbegin() + i,
-		[&] { if constexpr (traceback) return max_err.first; else return max_err - err_b; }(),
+		[&] { if constexpr (traceback) return max_err.first; else return max_err - err_b.first; }(),
 		[&](char c) { cigar_forward.prepend(c); });
-	if constexpr (!traceback)
-		return std::make_pair(err_f, err_b);
-	else {
-		const auto dist = std::distance(backwards_start, std::get<1>(err_b));
-		assert(j >= dist);
-		return std::make_pair(
-			RLE::concat(std::move(cigar_backward), std::move(cigar_forward)),
-			j - dist);
+	if constexpr (not traceback) {
+		const size_t res_pos = err_f.first + err_b.first > max_err
+			? 0
+			: j - std::distance(backwards_start, err_b.second);
+		return std::make_pair(std::make_pair(err_f.first, err_b.first), res_pos);
+	} else {
+		return RLE::concat(std::move(cigar_backward), std::move(cigar_forward));
 	}
 }

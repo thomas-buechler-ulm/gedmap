@@ -49,15 +49,24 @@ struct hotspot {
 // to (quickly) reconstruct the alignment incl. cigar string
 template<typename int_type>
 struct temp_alignment {
+	constexpr static float compute_sum_base_q(const std::pair<uint32_t,uint32_t>& dist) {
+		return
+			(dist.first + dist.second)
+				* (edsm_align::max_qual - edsm_align::min_qual)
+				/ 10.f // normalising factor
+				/ (edsm_align::max_mismatch_cost - edsm_align::min_mismatch_cost);
+	}
 	std::pair<uint32_t,uint32_t> dist; // (dist_left, dist_right)
+	float sum_base_q = 0;
 	int_type eds_pos; // eds pos
 	int_type read_pos; // read_pos
+	int_type ali_start_eds;
 	uint32_t source; // source
 	bool reverse_compl; // reverse_compl
 	constexpr uint32_t get_dist() const { return dist.first + dist.second; }
 	constexpr temp_alignment() = default;
-	constexpr temp_alignment(std::pair<uint32_t,uint32_t> dist, int_type eds_pos, int_type read_pos, bool reverse_compl, uint32_t source)
-		: dist(dist), eds_pos(eds_pos), read_pos(read_pos), source(source), reverse_compl(reverse_compl) {}
+	constexpr temp_alignment(std::pair<uint32_t,uint32_t> dist, int_type eds_pos, int_type read_pos, int_type ali_start_eds, bool reverse_compl, uint32_t source)
+		: dist(dist), sum_base_q(compute_sum_base_q(dist)), eds_pos(eds_pos), read_pos(read_pos), ali_start_eds(ali_start_eds), source(source), reverse_compl(reverse_compl) {}
 };
 template<typename int_type>
 struct alignment {
@@ -65,15 +74,18 @@ struct alignment {
 	uint32_t dist;
 	int_type pos;
 	bool align_r_c;
+	double map_q;
 	constexpr alignment(
 		std::string&& cigar,
 		uint32_t dist,
 		int_type pos,
-		bool align_r_c)
+		bool align_r_c,
+		double map_q)
 		: cigar(std::move(cigar))
 		, dist(dist)
 		, pos(pos)
 		, align_r_c(align_r_c)
+		, map_q(map_q)
 	{ }
 	constexpr alignment() = default;
 };
@@ -405,6 +417,10 @@ namespace read_processor {
 	struct align_state {
 		size_t i = 0, i_r_c = 0, tries = 0;
 		uint32_t D, D_r_c;
+		align_state(uint32_t D) : D(D), D_r_c(D) {}
+		align_state() = default;
+		align_state(align_state&&) = default;
+		align_state& operator=(align_state&&) = default;
 	};
 	template < typename int_type, typename Environ >
 	std::vector<temp_alignment<int_type>>
@@ -422,44 +438,9 @@ namespace read_processor {
 		assert(state.D_r_c <= std::numeric_limits<dist_type>::max());
 		
 		uint32_t aligns 	= 0;
-		
+
 		std::vector<temp_alignment<int_type>> tmp_alignments;
 
-		std::vector<bool> solved_already(max_a_t, false);
-
-		//while (aligns < max_a_c
-		//	and state.tries < max_a_t
-		//	and (state.i < hotspots.size() or state.i_r_c < hotspots_r_c.size())
-		//) {
-		//	const bool align_r_c = (state.i == hotspots.size()) // no further read in h_pos_i
-		//			|| (state.i_r_c < hotspots_r_c.size() && (want_both && state.tries > max_a_t
-		//				? (state.i_r_c < state.i)
-		//				: (hotspots[state.i].quality < hotspots_r_c[state.i_r_c].quality))); // or next rev komp hint has more window hits 
-		//	const auto [eds_pos, read_pos] = align_r_c // position in eds and read, respectively
-		//			? std::make_pair(hotspots_r_c[state.i_r_c].eds_pos, hotspots_r_c[state.i_r_c].read_pos)
-		//			: std::make_pair(hotspots    [state.i    ].eds_pos, hotspots    [state.i    ].read_pos);
-		//	auto& m_D = (want_both && align_r_c) ? state.D_r_c : state.D;
-		//	const auto dist = align_r_c
-		//		? align<false, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), eds_pos, read_r_c.sequence, read_r_c.qual, read_pos, 0)
-		//		: align<false, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), eds_pos,     read.sequence,     read.qual, read_pos, 0);
-	
-		//	if (dist.first + dist.second == 0) {
-		//		// ali found
-		//		solved_already[state.tries] = true;
-
-		//		aligns++;
-		//		(want_both && align_r_c ? tmp_alignments_r : tmp_alignments)
-		//			.emplace_back(dist, eds_pos, read_pos, align_r_c, align_r_c ? state.i_r_c : state.i);
-	
-		//		m_D = dist.first + dist.second;
-		//		if (not want_both and m_D < gedmap_align_min::DOUBT_DIST)
-		//			break;
-		//	}
-
-		//	state.tries++;
-		//	(align_r_c ? state.i_r_c : state.i)++;
-		//}
-		
 		if (aligns < max_a_c and std::min(state.D, state.D_r_c) >= gedmap_align_min::DOUBT_DIST)
 		{
 			state.tries = 0;
@@ -471,25 +452,22 @@ namespace read_processor {
 			) {
 				const bool align_r_c = (state.i == hotspots.size()) // no further read in h_pos_i
 							|| (state.i_r_c < hotspots_r_c.size() && (hotspots[state.i].quality < hotspots_r_c[state.i_r_c].quality)); // or next rev komp hint has more window hits 
-				if (not solved_already[state.tries])
-				{
-					const auto [eds_pos, read_pos] = align_r_c // position in eds and read, respectively
-							? std::make_pair(hotspots_r_c[state.i_r_c].eds_pos, hotspots_r_c[state.i_r_c].read_pos)
-							: std::make_pair(hotspots    [state.i    ].eds_pos, hotspots    [state.i    ].read_pos);
-					auto& m_D = state.D;
-					const auto dist = align_r_c
-						? align<false, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), eds_pos, read_r_c.sequence, read_r_c.qual, read_pos, m_D)
-						: align<false, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), eds_pos,     read.sequence,     read.qual, read_pos, m_D);
+				const auto [eds_pos, read_pos] = align_r_c // position in eds and read, respectively
+						? std::make_pair(hotspots_r_c[state.i_r_c].eds_pos, hotspots_r_c[state.i_r_c].read_pos)
+						: std::make_pair(hotspots    [state.i    ].eds_pos, hotspots    [state.i    ].read_pos);
+				auto& m_D = state.D;
+				const auto [dist, ali_start_eds] = align_r_c
+					? align_dp<false, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), eds_pos, read_r_c.sequence, read_r_c.qual, read_pos, m_D)
+					: align_dp<false, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), eds_pos,     read.sequence,     read.qual, read_pos, m_D);
 	
-					if (dist.first + dist.second <= m_D) {
-						// ali found
-						aligns++;
-						tmp_alignments.emplace_back(dist, eds_pos, read_pos, align_r_c, align_r_c ? state.i_r_c : state.i);
+				if (const uint32_t total_dist = dist.first + (uint32_t)dist.second; total_dist <= m_D) {
+					// alignment found
+					aligns++;
+					tmp_alignments.emplace_back(dist, eds_pos, read_pos, ali_start_eds, align_r_c, align_r_c ? state.i_r_c : state.i);
 	
-						m_D = dist.first + dist.second;
-						if (m_D < gedmap_align_min::DOUBT_DIST)
-							break;
-					}
+					m_D = dist.first + dist.second;
+					if (m_D < gedmap_align_min::DOUBT_DIST)
+						break;
 				}
 
 				state.tries++;
@@ -516,7 +494,7 @@ namespace read_processor {
 		const uint32_t max_a_c, // max alignments calculated
 		const uint32_t max_a_t // max tries
 	) {
-		align_state state { .D = D, .D_r_c = D };
+		align_state state { D };
 		return align(hotspots, read, hotspots_r_c, read_r_c, env, state, max_a_c, max_a_t);
 	}
 	// finalizes the first max_out alignments
@@ -529,13 +507,43 @@ namespace read_processor {
 		const std::vector<temp_alignment<int_type>>& tmp,
 		const size_t max_out
 	) {
+		double sum_sum_base_q = 0;
+		for (const auto& ali : tmp)
+			sum_sum_base_q += exp10(-0.1 * ali.sum_base_q);
+
 		const size_t num_out = std::min(max_out, tmp.size());
 		std::vector<alignment<int_type>> res(num_out);
 		for (size_t i = 0; i < num_out; i++) {
-			auto[cigar, pos] = tmp[i].reverse_compl
-					? align<true, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), tmp[i].eds_pos, read_r_c.sequence, read_r_c.qual, tmp[i].read_pos, tmp[i].dist)
-					: align<true, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), tmp[i].eds_pos,     read.sequence,     read.qual, tmp[i].read_pos, tmp[i].dist);
-			res[i] = alignment<int_type>(std::move(cigar), tmp[i].get_dist(), pos, tmp[i].reverse_compl);
+			auto cigar = tmp[i].reverse_compl
+					? align_dp<true, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), tmp[i].eds_pos, read_r_c.sequence, read_r_c.qual, tmp[i].read_pos, tmp[i].dist)
+					: align_dp<true, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), tmp[i].eds_pos,     read.sequence,     read.qual, tmp[i].read_pos, tmp[i].dist);
+			res[i] = alignment<int_type>(std::move(cigar), tmp[i].get_dist(), tmp[i].ali_start_eds, tmp[i].reverse_compl, 1.0 - exp10(-0.1 * tmp[i].sum_base_q) / sum_sum_base_q);
+		}
+		return res;
+	}
+	// finalizes the first max_out alignments
+	template<typename int_type, typename Environ>
+	std::vector<alignment<int_type>>
+	finalize_alignments(
+		const fasta_read<int_type>& read,
+		const fasta_read<int_type>& read_r_c,
+		const Environ& env,
+		const std::vector<temp_alignment<int_type>>& tmp,
+		const size_t max_out,
+		const std::vector<temp_alignment<int_type>>& tmp_other
+	) {
+		assert(tmp.size() == tmp_other.size());
+		double sum_sum_base_q = 0;
+		for (size_t i = 0; i < tmp.size(); i++)
+			sum_sum_base_q += exp10(-0.1 * (tmp[i].sum_base_q + tmp_other[i].sum_base_q));
+
+		const size_t num_out = std::min(max_out, tmp.size());
+		std::vector<alignment<int_type>> res(num_out);
+		for (size_t i = 0; i < num_out; i++) {
+			auto cigar = tmp[i].reverse_compl
+					? align_dp<true, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), tmp[i].eds_pos, read_r_c.sequence, read_r_c.qual, tmp[i].read_pos, tmp[i].dist)
+					: align_dp<true, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), tmp[i].eds_pos,     read.sequence,     read.qual, tmp[i].read_pos, tmp[i].dist);
+			res[i] = alignment<int_type>(std::move(cigar), tmp[i].get_dist(), tmp[i].ali_start_eds, tmp[i].reverse_compl, 1.0 - exp10(-0.1 * (tmp[i].sum_base_q + tmp_other[i].sum_base_q)) / sum_sum_base_q);
 		}
 		return res;
 	}
@@ -553,10 +561,26 @@ namespace read_processor {
 		const uint32_t max_a_t, // max tries
 		const uint32_t max_a_o
 	) {
+		auto tmp_alignments = align(hotspots, read, hotspots_r_c, read_r_c, env, D, max_a_c, max_a_t);
+		{ // remove duplicates
+			std::unordered_map<size_t, size_t> min_dist[2];
+			for (size_t i = 0; i < tmp_alignments.size(); i++) {
+				const auto& ali = tmp_alignments[i];
+				auto[it,succ] = min_dist[ali.reverse_compl].emplace(ali.ali_start_eds, i);
+				if (not succ and tmp_alignments[it->second].get_dist() > ali.get_dist())
+					it->second = i;
+			}
+			std::vector<temp_alignment<int_type>> res;
+			res.reserve(min_dist[0].size() + min_dist[1].size());
+			for (size_t r_c = 0; r_c < 2; r_c++)
+				for (const auto& kv : min_dist[r_c])
+					res.emplace_back(std::move(tmp_alignments[kv.second]));
+			tmp_alignments = std::move(res);
+		}
 		return finalize_alignments(
 			read, read_r_c,
 			env,
-			align(hotspots, read, hotspots_r_c, read_r_c, env, D, max_a_c, max_a_t),
+			std::move(tmp_alignments),
 			max_a_o);
 	}
 	template<typename int_type, typename Environ>
@@ -572,11 +596,8 @@ namespace read_processor {
 	) {
 		fasta_read<int_type> dummy;
 		std::vector<hotspot<int_type>> hotspots_dummy;
-		return finalize_alignments(
-			read, dummy,
-			env,
-			align(hotspots, read, hotspots_dummy, dummy, env, D, max_a_c, max_a_t),
-			max_a_o);
+		return start_aligner<int_type>(hotspots, read, hotspots_dummy, dummy,
+			env, D, max_a_c, max_a_t, max_a_o);
 	}
 
 
@@ -631,6 +652,23 @@ namespace read_processor {
 			});
 		alignments = std::move(tmp);
 	}
+	
+	constexpr uint32_t get_edit_distance(std::string_view cigar) {
+		uint32_t res = 0;
+		for (size_t i = 0; i < cigar.size(); i++) {
+			size_t num = 1;
+			if (std::isdigit(cigar[i])) {
+				num = cigar[i++] - '0';
+				while (std::isdigit(cigar[i])) {
+					num = 10 * num + (cigar[i++] - '0');
+				}
+			}
+			if (cigar[i] != '=')
+				res += num;
+		}
+		return res;
+	}
+
 
 	using SAM_FLAG = uint32_t;
 	namespace SAM_FLAGS {
@@ -673,6 +711,7 @@ namespace read_processor {
 			RNAME 	= "*";
 			POS 		= alignments[i].pos+1;
 			const auto& CIGAR 	= alignments[i].cigar;
+			const uint32_t MAPQ = std::round(std::min(42., -10. * std::log10(alignments[i].map_q)));
 			
 			SAM_FLAG FLAG = 0;
 			if ( i > 0 )	
@@ -687,7 +726,9 @@ namespace read_processor {
 			ofs 	<< QNAME << '\t' << FLAG << '\t' << RNAME << '\t' << POS << '\t' << MAPQ << '\t' << CIGAR << '\t' << RNEXT << '\t' << PNEXT << '\t' << TLEN << '\t' 
 				<< (alignments[i].align_r_c ? R_SEQ : SEQ) << '\t'
 				<< (alignments[i].align_r_c ? R_QUAL : QUAL) << '\t'
-				<< "NM:i:" << ((uint32_t)alignments[i].dist) <<  (off?(" XO:i:" + to_string(off)):"") << '\n';
+				<< "NM:i:" << get_edit_distance(alignments[i].cigar)
+				<< " AS:i:" << alignments[i].dist
+				<< (off?(" XO:i:" + to_string(off)):"") << '\n';
 		}
 		
 		return alignments.size();
@@ -765,14 +806,16 @@ namespace read_processor {
 			
 			for (size_t i = 0; i < 2; i++)
 			{
-				const uint32_t MAPQ = 255; //TODO
+				const uint32_t MAPQ = std::round(min(50., -10. * std::log10(alignments[i]->map_q)));
 				constexpr std::string_view RNEXT = "*";
 				constexpr uint32_t TLEN = 0;
 
 				ofs << QNAME << '\t' << flag << '\t' << RNAME[i] << '\t' << POS[i] << '\t' << MAPQ << '\t' << alignments[i]->cigar << '\t' << RNEXT << '\t' << POS[1-i] /* PNEXT */ << '\t' << TLEN << '\t' 
 					<< reads[i]->sequence << '\t'
 					<< reads[i]->qual << '\t'
-					<< "NM:i:" << (alignments[i]->dist) <<  (off[i]?(" XO:i:" + to_string(off[i])):"") << '\n';
+					<< "NM:i:" << get_edit_distance(alignments[i]->cigar)
+					<< " AS:i:" << alignments[i]->dist
+					<<  (off[i]?(" XO:i:" + to_string(off[i])):"") << '\n';
 			}
 		}
 		return alignments_l.size();

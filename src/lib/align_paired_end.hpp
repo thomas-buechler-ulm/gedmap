@@ -28,11 +28,9 @@ try_mate(
 	const size_t events_pre_size = events.size(), events_rev_pre_size = events_rev.size();
 	for (size_t ali_idx = 0; ali_idx < std::min(mam, tmp_alignments_l.size()); ali_idx++) {
 		const auto& ali = tmp_alignments_l[ali_idx];
-		//tmp_alignments_l[i].source = std::numeric_limits<uint32_t>::max();
-		// TODO: find the rightmost matched symbol
 		(ali.reverse_compl ? events_rev : events)
 			.emplace_back(
-				mk_event_pos(ali.eds_pos - ali.read_pos),
+				mk_event_pos(ali.ali_start_eds),
 				ali_idx,
 				pairing_ali_weigth * (int64_t)ali.get_dist());
 	}
@@ -104,8 +102,7 @@ fallback(
 	const std::vector< query_position<int_type> >& pos_pairs_r_r_c,
 	const fasta_read<int_type>& read_l,
 	const fasta_read<int_type>& read_r,
-	size_t& num_tried,
-	double& pairing_time
+	size_t& num_tried
 ) {
 	constexpr double INF = std::numeric_limits<double>::infinity();
 	
@@ -124,7 +121,7 @@ fallback(
 			for (size_t i = 0; i < hotspots_l.size(); i++)
 				if (true or hotspots_l[i].quality * 4 >= max_qual * 2)
 					events.emplace_back(
-						hotspots_l[i].eds_pos - hotspots_l[i].read_pos,
+						hotspots_l[i].eds_pos,
 						i,
 						-pairing_ali_weigth * (int64_t)hotspots_l[i].quality);
 				else break;
@@ -135,7 +132,7 @@ fallback(
 			for (size_t i = 0; i < hotspots_r.size(); i++)
 				if (true or hotspots_r[i].quality * 4 >= max_qual * 2)
 					events_rev.emplace_back(
-						hotspots_r[i].eds_pos - hotspots_r[i].read_pos,
+						hotspots_r[i].eds_pos,
 						i,
 						-pairing_ali_weigth * (int64_t)hotspots_r[i].quality);
 				else break;
@@ -148,8 +145,6 @@ fallback(
 			( hotspots_r.size()
 			, std::make_tuple(std::numeric_limits<uint32_t>::max(), INF));
 
-		sys_timer timer;
-		timer.start();
 		paired_end<int64_t, int64_t>([&opt_mate_l](auto a, auto b, auto val) {
 				if (val < std::get<1>(opt_mate_l[b]))
 					opt_mate_l[b] = std::make_tuple(a, val);
@@ -166,7 +161,6 @@ fallback(
 			EDG_view<uint32_t>{&msq},
 			msq,
 			PE_FRAGMENT_LENGTH);
-		pairing_time += timer.stop_and_get();
 
 		events.resize(events_pre_size), events_rev.resize(events_rev_pre_size);
 
@@ -206,22 +200,22 @@ fallback(
 		const auto& pos_pair = (r_c ? pos_pairs_l_r_c : pos_pairs_r_r_c)[pos_pair_idx];
 
 		// align left
-		const auto dist_left = align<false, read_processor::dist_type, uint32_t>(
+		const auto [dist_left, ali_start_eds_left] = align_dp<false, read_processor::dist_type, uint32_t>(
 			eget<std::string>(env),
 			eget<adjacency>(env),
 			hotspot.eds_pos,
 			read_left.sequence, read_left.qual,
 			hotspot.read_pos, D);
-		temp_alignment<int_type> tmp_ali_left(dist_left, hotspot.eds_pos, hotspot.read_pos, r_c, i);
+		temp_alignment<int_type> tmp_ali_left(dist_left, hotspot.eds_pos, hotspot.read_pos, ali_start_eds_left, r_c, i);
 		if (tmp_ali_left.get_dist() > D) continue;
 
-		const auto dist_right = align<false, read_processor::dist_type, uint32_t>(
+		const auto [dist_right, ali_start_eds_right] = align_dp<false, read_processor::dist_type, uint32_t>(
 			eget<std::string>(env),
 			eget<adjacency>(env),
 			pos_pair.eds_pos,
 			read_right.sequence, read_right.qual,
 			pos_pair.read_pos, D);
-		temp_alignment<int_type> tmp_ali_right(dist_right, pos_pair.eds_pos, pos_pair.read_pos, r_c, i);
+		temp_alignment<int_type> tmp_ali_right(dist_right, pos_pair.eds_pos, pos_pair.read_pos, ali_start_eds_right, r_c, i);
 		if (tmp_ali_right.get_dist() > D) continue;
 
 		D = std::max( tmp_ali_left.get_dist(), tmp_ali_right.get_dist() );
@@ -249,8 +243,7 @@ try_pair(
 	const std::vector<query_position<int_type>>& pos_pairs_b,
 	const std::vector<query_position<int_type>>& pos_pairs_a_r_c,
 	const std::vector<query_position<int_type>>& pos_pairs_b_r_c,
-	size_t& fallback_tries,
-	double& pairing_time
+	size_t& fallback_tries
 ) {
 	const auto mk_event_pos = [&] (int64_t pos) -> int64_t {
 		if constexpr (reverse)
@@ -264,12 +257,12 @@ try_pair(
 	// build events for mate-pairing
 	for (uint32_t i = 0; i < pos_pairs_b_r_c.size(); i++)
 		events.emplace_back(
-			mk_event_pos(pos_pairs_b_r_c[i].eds_pos - pos_pairs_b_r_c[i].read_pos),
+			mk_event_pos(pos_pairs_b_r_c[i].eds_pos),
 			i,
 			std::nullopt);
 	for (uint32_t i = 0; i < pos_pairs_a_r_c.size(); i++)
 		events_rev.emplace_back(
-			mk_event_pos(pos_pairs_a_r_c[i].eds_pos - pos_pairs_a_r_c[i].read_pos),
+			mk_event_pos(pos_pairs_a_r_c[i].eds_pos),
 			i,
 			std::nullopt);
 	
@@ -352,8 +345,8 @@ try_pair(
 			tmp_r[i] = tmp_alignments_r[std::get<2>(mates[i])];
 		}
 		return {
-			read_processor::finalize_alignments(read_a, read_b, env, tmp_l, MAX_ALIGNS_O),
-			read_processor::finalize_alignments(read_b_r_c, read_a_r_c, env, tmp_r, MAX_ALIGNS_O)
+			read_processor::finalize_alignments(read_a, read_b, env, tmp_l, MAX_ALIGNS_O, tmp_r),
+			read_processor::finalize_alignments(read_b_r_c, read_a_r_c, env, tmp_r, MAX_ALIGNS_O, tmp_l)
 		};
 	}
 	else
@@ -370,7 +363,7 @@ try_pair(
 				hotspots_a, hotspots_b,
 				pos_pairs_a_r_c, pos_pairs_b_r_c,
 				read_a, read_b,
-				fallback_tries, pairing_time);
+				fallback_tries);
 			std::sort(tmp_alignments.begin(), tmp_alignments.end(), [](const auto& lhs, const auto& rhs) {
 				return lhs[0].get_dist() + lhs[1].get_dist() < rhs[0].get_dist() + rhs[1].get_dist();
 			});
@@ -395,8 +388,7 @@ try_pair(
 				pos_pairs_b_r_c,
 				pos_pairs_a,
 				pos_pairs_b,
-				fallback_tries,
-				pairing_time);
+				fallback_tries);
 		}
 	}
 }
@@ -409,8 +401,7 @@ pair_read(
 	const Environ& env,
 	const fasta_read<int_type>& read_l,
 	const fasta_read<int_type>& read_r,
-	size_t& fallback_tries,
-	double& pairing_time
+	size_t& fallback_tries
 ) {
 	const auto& mini = eget<gedmap_mini::minimizer_index>(env);
 
@@ -440,8 +431,7 @@ pair_read(
 		pos_pairs_r_r_c,
 		pos_pairs_l,
 		pos_pairs_r,
-		fallback_tries,
-		pairing_time);
+		fallback_tries);
 }
 
 
@@ -488,7 +478,6 @@ map_pairs(
 
 	size_t num_failed = 0;
 	size_t num_fallback = 0, num_fallback_tries = 0;
-	double pairing_time = 0;
 
 	size_t count = 0;
 	#pragma omp parallel for schedule(dynamic,10)
@@ -501,8 +490,7 @@ map_pairs(
 		}
 
 		size_t fallback_tries = 0;
-		double pairing_time_tmp = 0;
-		auto[alignments_l, alignments_r] = pair_read<int_type>(env, read_l, read_r, fallback_tries, pairing_time_tmp);
+		auto[alignments_l, alignments_r] = pair_read<int_type>(env, read_l, read_r, fallback_tries);
 
 		#pragma omp critical
 		{
@@ -516,7 +504,6 @@ map_pairs(
 				num_fallback++;
 				num_fallback_tries += fallback_tries - 1;
 			}
-			pairing_time += pairing_time_tmp;
 
 			if (cnt == 0)
 				num_failed++;
@@ -529,7 +516,6 @@ map_pairs(
 	std::cerr << std::endl << num_failed << " could not pair" << std::endl;
 	std::cerr << "num_fallback: " << num_fallback << std::endl;
 	std::cerr << "num_fallback_tries: " << num_fallback_tries << std::endl;
-	std::cerr << "fallback pairing time: " << pairing_time << "s" << std::endl;
 	std::cerr << "paired_end_skip_queries: " << paired_end_skip_queries.load() << std::endl;
 	std::cerr << "paired_end_skip: " << paired_end_skip.load() << std::endl;
 }

@@ -128,7 +128,7 @@ $(SAMPLE_DIR)/$(SAMPLE0).mp%fq $(SAMPLE_DIR)/$(SAMPLE0).mp%fq.2 : $(GEDS)
 $(SAMPLE_DIR)/$(SAMPLE1).mp%fq $(SAMPLE_DIR)/$(SAMPLE1).mp%fq.2 : $(GEDS)
 	mkdir -p $(SAMPLE_DIR); $(gedmap) sample $(common_sample_params) -o $(SAMPLE_DIR)/$(SAMPLE1).mp.fq -l 100 $(low_error)  $(SAMPLE1_FRAG_MEAN)
 $(SAMPLE_DIR)/$(SAMPLE3).mp%fq $(SAMPLE_DIR)/$(SAMPLE3).mp%fq.2 : $(GEDS)
-	mkdir -p $(SAMPLE_DIR); $(gedmap) sample $(common_sample_params) -o $(SAMPLE_DIR)/$(SAMPLE3).mp.fq -l 100 $(high_error) $(SAMPLE0_FRAG_MEAN)
+	mkdir -p $(SAMPLE_DIR); $(gedmap) sample $(common_sample_params) -o $(SAMPLE_DIR)/$(SAMPLE3).mp.fq -l 100 $(high_error) $(SAMPLE3_FRAG_MEAN)
 $(SAMPLE_DIR)/$(SAMPLE8).mp%fq $(SAMPLE_DIR)/$(SAMPLE8).mp%fq.2 : $(GEDS)
 	mkdir -p $(SAMPLE_DIR); $(gedmap) sample $(common_sample_params) -o $(SAMPLE_DIR)/$(SAMPLE8).mp.fq -l 500 $(zero_error) $(SAMPLE8_FRAG_MEAN)
 $(SAMPLE_DIR)/$(SAMPLE9).mp%fq $(SAMPLE_DIR)/$(SAMPLE9).mp%fq.2 : $(GEDS)
@@ -465,19 +465,19 @@ $(GIRAFFE_DIR)/reads2.sam:  $(READS2) $(gbz)
 	$(vg) giraffe -Z $(gbz) -f $(READS2) $(GIRAFFE_PARAMS) > $(GIRAFFE_DIR)/reads2.sam
 ##### Paired-end #####
 $(GIRAFFE_DIR)/reads.mp.sam:  $(READS) $(READS_MP) $(gbz)
-	$(vg) giraffe -Z $(gbz) -f  $(READS) -f $(READS_MP) $(GIRAFFE_PARAMS) -fragment-mean 160 > $(GIRAFFE_DIR)/reads.mp.sam
+	$(vg) giraffe -Z $(gbz) -f  $(READS) -f $(READS_MP) $(GIRAFFE_PARAMS) --fragment-mean 160 --fragment-stdev 60 > $(GIRAFFE_DIR)/reads.mp.sam
 $(GIRAFFE_DIR)/$(SAMPLE0).mp.sam:  $(SAMPLE_DIR)/$(SAMPLE0).mp.fq  $(SAMPLE_DIR)/$(SAMPLE0).mp.fq  $(gbz)
-	$(vg) giraffe -Z $(gbz) -f  $(SAMPLE_DIR)/$(SAMPLE0).mp.fq -f $(SAMPLE_DIR)/$(SAMPLE0).mp.fq.2  $(GIRAFFE_PARAMS) > $(GIRAFFE_DIR)/$(SAMPLE0).mp.sam
+	$(vg) giraffe -Z $(gbz) -f  $(SAMPLE_DIR)/$(SAMPLE0).mp.fq -f $(SAMPLE_DIR)/$(SAMPLE0).mp.fq.2  $(GIRAFFE_PARAMS) -$(SAMPLE0_FRAG_MEAN)  --fragment-stdev 2 > $(GIRAFFE_DIR)/$(SAMPLE0).mp.sam
 $(GIRAFFE_DIR)/$(SAMPLE1).mp.sam:  $(SAMPLE_DIR)/$(SAMPLE1).mp.fq  $(SAMPLE_DIR)/$(SAMPLE1).mp.fq  $(gbz)
-	$(vg) giraffe -Z $(gbz) -f  $(SAMPLE_DIR)/$(SAMPLE1).mp.fq -f $(SAMPLE_DIR)/$(SAMPLE1).mp.fq.2  $(GIRAFFE_PARAMS) > $(GIRAFFE_DIR)/$(SAMPLE1).mp.sam
+	$(vg) giraffe -Z $(gbz) -f  $(SAMPLE_DIR)/$(SAMPLE1).mp.fq -f $(SAMPLE_DIR)/$(SAMPLE1).mp.fq.2  $(GIRAFFE_PARAMS) -$(SAMPLE1_FRAG_MEAN)  --fragment-stdev 5 > $(GIRAFFE_DIR)/$(SAMPLE1).mp.sam
 $(GIRAFFE_DIR)/$(SAMPLE3).mp.sam:  $(SAMPLE_DIR)/$(SAMPLE3).mp.fq  $(SAMPLE_DIR)/$(SAMPLE3).mp.fq  $(gbz)
-	$(vg) giraffe -Z $(gbz) -f  $(SAMPLE_DIR)/$(SAMPLE3).mp.fq -f $(SAMPLE_DIR)/$(SAMPLE3).mp.fq.2  $(GIRAFFE_PARAMS) > $(GIRAFFE_DIR)/$(SAMPLE3).mp.sam
+	$(vg) giraffe -Z $(gbz) -f  $(SAMPLE_DIR)/$(SAMPLE3).mp.fq -f $(SAMPLE_DIR)/$(SAMPLE3).mp.fq.2  $(GIRAFFE_PARAMS) -$(SAMPLE3_FRAG_MEAN)  --fragment-stdev 10 > $(GIRAFFE_DIR)/$(SAMPLE3).mp.sam
 $(GIRAFFE_DIR)/$(SAMPLE8).mp.sam:  $(SAMPLE_DIR)/$(SAMPLE8).mp.fq  $(SAMPLE_DIR)/$(SAMPLE8).mp.fq  $(gbz)
-	$(vg) giraffe -Z $(gbz) -f  $(SAMPLE_DIR)/$(SAMPLE8).mp.fq -f $(SAMPLE_DIR)/$(SAMPLE8).mp.fq.2  $(GIRAFFE_PARAMS) > $(GIRAFFE_DIR)/$(SAMPLE8).mp.sam
+	$(vg) giraffe -Z $(gbz) -f  $(SAMPLE_DIR)/$(SAMPLE8).mp.fq -f $(SAMPLE_DIR)/$(SAMPLE8).mp.fq.2  $(GIRAFFE_PARAMS) -$(SAMPLE8_FRAG_MEAN)  --fragment-stdev 10 > $(GIRAFFE_DIR)/$(SAMPLE8).mp.sam
 $(GIRAFFE_DIR)/$(SAMPLE9).mp.sam:  $(SAMPLE_DIR)/$(SAMPLE9).mp.fq  $(SAMPLE_DIR)/$(SAMPLE9).mp.fq  $(gbz)
-	$(vg) giraffe -Z $(gbz) -f  $(SAMPLE_DIR)/$(SAMPLE9).mp.fq -f $(SAMPLE_DIR)/$(SAMPLE9).mp.fq.2  $(GIRAFFE_PARAMS) > $(GIRAFFE_DIR)/$(SAMPLE9).mp.sam
+	$(vg) giraffe -Z $(gbz) -f  $(SAMPLE_DIR)/$(SAMPLE9).mp.fq -f $(SAMPLE_DIR)/$(SAMPLE9).mp.fq.2  $(GIRAFFE_PARAMS) -$(SAMPLE9_FRAG_MEAN)  --fragment-stdev 25 > $(GIRAFFE_DIR)/$(SAMPLE9).mp.sam
 $(GIRAFFE_DIR)/$(SAMPLE11).mp.sam: $(SAMPLE_DIR)/$(SAMPLE11).mp.fq $(SAMPLE_DIR)/$(SAMPLE11).mp.fq $(gbz)
-	$(vg) giraffe -Z $(gbz) -f $(SAMPLE_DIR)/$(SAMPLE11).mp.fq -f $(SAMPLE_DIR)/$(SAMPLE11).mp.fq.2 $(GIRAFFE_PARAMS) > $(GIRAFFE_DIR)/$(SAMPLE11).mp.sam
+	$(vg) giraffe -Z $(gbz) -f $(SAMPLE_DIR)/$(SAMPLE11).mp.fq -f $(SAMPLE_DIR)/$(SAMPLE11).mp.fq.2 $(GIRAFFE_PARAMS) -$(SAMPLE11_FRAG_MEAN) --fragment-stdev 50 > $(GIRAFFE_DIR)/$(SAMPLE11).mp.sam
 
 $(GIRAFFE_DIR)/index.out:
 	mkdir -p $(GIRAFFE_DIR)

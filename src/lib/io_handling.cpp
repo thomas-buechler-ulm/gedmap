@@ -590,7 +590,7 @@ void print_help(){
 		"-rc x , probability of a read to be a reverse complement = 1/x, (rev complement rate, DEFAULT x=" + to_string(RC_RATE_DEFAULT) +")",
 		"-s x , seed for rng=x, (seed, DEFAULT x=0)",
 		"-o fname , output will be written to file fname (DEFAULT  fname=[1]."+ FEX_SAMPLE +")",
-		"-fragment-mean x , enables paired-end mode (second file will be {argument to \"-o\"}.2)",
+		"-fragment-mean x , enables paired-end mode, x is length of fragment from which the reads-pairs come from (second file will be {argument to \"-o\"}.2)",
 		"-2fa "+FEX_2FA+"-file , if given this is used to transform GEDS-positions to FA positions",
 		"-a fname,  file name of the adijacency file",
 		"-ae fname,  file name of the adijacency file, only sample reads that go over edges in the graph"

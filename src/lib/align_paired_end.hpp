@@ -101,8 +101,7 @@ fallback(
 	const std::vector< query_position<int_type> >& pos_pairs_l_r_c,
 	const std::vector< query_position<int_type> >& pos_pairs_r_r_c,
 	const fasta_read<int_type>& read_l,
-	const fasta_read<int_type>& read_r,
-	size_t& num_tried
+	const fasta_read<int_type>& read_r
 ) {
 	constexpr double INF = std::numeric_limits<double>::infinity();
 	
@@ -190,8 +189,6 @@ fallback(
 	std::vector< std::array<temp_alignment<int_type>, 2> > tmp_alignments;
 
 	for (size_t i = 0; i < mate_candidates.size() and i < MAX_ALIGNS_T_FALLBACK and tmp_alignments.size() < MAX_ALIGNS_C[0]; i++) {
-		num_tried++;
-
 		const auto&[_, hotspot_idx, pos_pair_idx, r_c] = mate_candidates[i];
 		const auto&[read_left, read_right] = r_c
 			? std::tie(read_r, read_l_r_c)
@@ -225,8 +222,6 @@ fallback(
 		if (D < gedmap_align_min::DOUBT_DIST)
 			break;
 	}
-	if (tmp_alignments.empty())
-		num_tried = 1;
 
 	return tmp_alignments;
 }
@@ -243,7 +238,7 @@ try_pair(
 	const std::vector<query_position<int_type>>& pos_pairs_b,
 	const std::vector<query_position<int_type>>& pos_pairs_a_r_c,
 	const std::vector<query_position<int_type>>& pos_pairs_b_r_c,
-	size_t& fallback_tries
+	bool& tried_fallback
 ) {
 	const auto mk_event_pos = [&] (int64_t pos) -> int64_t {
 		if constexpr (reverse)
@@ -356,14 +351,13 @@ try_pair(
 			if (not FALLBACK) // no fallback
 				return {{{}, {}}};
 
-			fallback_tries = 1;
+			tried_fallback = true;
 			auto tmp_alignments = fallback<int_type>(
 				env,
 				events, events_rev,
 				hotspots_a, hotspots_b,
 				pos_pairs_a_r_c, pos_pairs_b_r_c,
-				read_a, read_b,
-				fallback_tries);
+				read_a, read_b);
 			std::sort(tmp_alignments.begin(), tmp_alignments.end(), [](const auto& lhs, const auto& rhs) {
 				return lhs[0].get_dist() + lhs[1].get_dist() < rhs[0].get_dist() + rhs[1].get_dist();
 			});
@@ -388,7 +382,7 @@ try_pair(
 				pos_pairs_b_r_c,
 				pos_pairs_a,
 				pos_pairs_b,
-				fallback_tries);
+				tried_fallback);
 		}
 	}
 }
@@ -401,7 +395,7 @@ pair_read(
 	const Environ& env,
 	const fasta_read<int_type>& read_l,
 	const fasta_read<int_type>& read_r,
-	size_t& fallback_tries
+	bool& fallback_tried
 ) {
 	const auto& mini = eget<gedmap_mini::minimizer_index>(env);
 
@@ -431,7 +425,7 @@ pair_read(
 		pos_pairs_r_r_c,
 		pos_pairs_l,
 		pos_pairs_r,
-		fallback_tries);
+		fallback_tried);
 }
 
 
@@ -476,8 +470,7 @@ map_pairs(
 		return num_lines / 4;
 	} ();
 
-	size_t num_failed = 0;
-	size_t num_fallback = 0, num_fallback_tries = 0;
+	size_t num_failed = 0, num_fallback = 0;
 
 	size_t count = 0;
 	#pragma omp parallel for schedule(dynamic,10)
@@ -489,8 +482,8 @@ map_pairs(
 			read_r = fasta_read<int_type>(fastq_r);
 		}
 
-		size_t fallback_tries = 0;
-		auto[alignments_l, alignments_r] = pair_read<int_type>(env, read_l, read_r, fallback_tries);
+		bool fallback_tried = false;
+		auto[alignments_l, alignments_r] = pair_read<int_type>(env, read_l, read_r, fallback_tried);
 
 		#pragma omp critical
 		{
@@ -500,10 +493,7 @@ map_pairs(
 				o_s,
 				p2FA);
 
-			if (fallback_tries > 0) {
-				num_fallback++;
-				num_fallback_tries += fallback_tries - 1;
-			}
+			num_fallback += fallback_tried;
 
 			if (cnt == 0)
 				num_failed++;
@@ -511,13 +501,10 @@ map_pairs(
 			if (count % 1000 == 0)
 				gedmap_io::flush_row("Searched read pairs", to_string(count));
 		}
-		
 	}
-	std::cerr << std::endl << num_failed << " could not pair" << std::endl;
-	std::cerr << "num_fallback: " << num_fallback << std::endl;
-	std::cerr << "num_fallback_tries: " << num_fallback_tries << std::endl;
-	std::cerr << "paired_end_skip_queries: " << paired_end_skip_queries.load() << std::endl;
-	std::cerr << "paired_end_skip: " << paired_end_skip.load() << std::endl;
+	gedmap_io::print_row("Searched read pairs", to_string(count));
+	gedmap_io::print_row("Could not pair", to_string(num_failed));
+	gedmap_io::print_row("Fallbacks used", to_string(num_fallback));
 }
 
 } // namespace gedmap_align_min

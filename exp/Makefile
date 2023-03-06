@@ -26,6 +26,7 @@ GZ_DIR = ../data/gz
 FA   = $(DATA)/hs37d5.fa
 VCF  = $(DATA)/human.vcf
 READS = $(DATA)/reads.fq
+READS_MP = $(DATA)/reads.fq.2
 READS2 = $(DATA)/reads2.fq
 VCF_GZ  = $(GZ_DIR)/chrom1.vcf.gz \
 -v $(GZ_DIR)/chrom2.vcf.gz \
@@ -57,7 +58,7 @@ VCF_GZ  = $(GZ_DIR)/chrom1.vcf.gz \
 GEDMAP_K = 14
 GEDMAP_W = 5
 
-GEDMAP_PARAMS = -rc -tc 64
+GEDMAP_PARAMS = -rc -tc 32
 GEDMAP_PARAMS_SAM0 =  $(GEDMAP_PARAMS) -mac 50 -mat 100
 GEDMAP_PARAMS_SAM1 =  $(GEDMAP_PARAMS) -mac 50 -mat 100
 GEDMAP_PARAMS_SAM3 =  $(GEDMAP_PARAMS) -mac 50 -mat 100
@@ -65,8 +66,9 @@ GEDMAP_PARAMS_SAM8 =  $(GEDMAP_PARAMS) -d 20
 GEDMAP_PARAMS_SAM9 =  $(GEDMAP_PARAMS) -d 20
 GEDMAP_PARAMS_SAM11 = $(GEDMAP_PARAMS)
 GEDMAP_PARAMS_READ =  $(GEDMAP_PARAMS)
+GEDMAP_PARAMS_READ_MP =  $(GEDMAP_PARAMS) -fragment-mean 160
 
-HISAT_PARAMS_SAM0 = -p 64 --ignore-quals --score-min L,0,-0.6 --no-softclip --mp 1,1 --rdg 0,1 --rfg 0,1 --np 0 -k 1 -t
+HISAT_PARAMS_SAM0 = -p 32 --ignore-quals --score-min L,0,-0.6 --no-softclip --mp 1,1 --rdg 0,1 --rfg 0,1 --np 0 -k 1 -t
 HISAT_PARAMS_SAM1 = $(HISAT_PARAMS_SAM0)
 HISAT_PARAMS_SAM2 = $(HISAT_PARAMS_SAM0)
 HISAT_PARAMS_SAM3 = $(HISAT_PARAMS_SAM0) --score-min L,0,-0.8
@@ -75,7 +77,7 @@ HISAT_PARAMS_SAM9 = $(HISAT_PARAMS_SAM0)
 HISAT_PARAMS_SAM10 = $(HISAT_PARAMS_SAM0)
 HISAT_PARAMS_SAM11 = $(HISAT_PARAMS_SAM0) --score-min L,0,-0.8
 
-GIRAFFE_PARAMS = -t 64 -o SAM
+GIRAFFE_PARAMS = -t 32 -o SAM
 
 ################### SAMPLES #####################
 SAMPLE_DIR = samples
@@ -87,6 +89,13 @@ SAMPLE3 = 100_high
 SAMPLE8 = 500_none
 SAMPLE9 = 500_low
 SAMPLE11 = 500_high
+
+SAMPLE0_FRAG_MEAN  = -fragment-mean 300
+SAMPLE1_FRAG_MEAN  = -fragment-mean 300
+SAMPLE3_FRAG_MEAN  = -fragment-mean 300
+SAMPLE8_FRAG_MEAN  = -fragment-mean 700
+SAMPLE9_FRAG_MEAN  = -fragment-mean 700
+SAMPLE11_FRAG_MEAN = -fragment-mean 700
 
 SAMPLE_OE = 100_low_edge
 
@@ -112,6 +121,20 @@ $(SAMPLE_DIR)/$(SAMPLE11).fq:  $(GEDS)
 	mkdir -p $(SAMPLE_DIR); $(gedmap) sample $(common_sample_params) -o $(SAMPLE_DIR)/$(SAMPLE11).fq -l 500 $(high_error)
 $(SAMPLE_DIR)/$(SAMPLE_OE).fq:  $(GEDS)
 	mkdir -p $(SAMPLE_DIR); $(gedmap) sample $(common_sample_params) -ae $(ADJ) -o $(SAMPLE_DIR)/$(SAMPLE_OE).fq -l 100 $(low_error)
+
+##### Paired end #####
+$(SAMPLE_DIR)/$(SAMPLE0).mp%fq $(SAMPLE_DIR)/$(SAMPLE0).mp%fq.2 : $(GEDS)
+	mkdir -p $(SAMPLE_DIR); $(gedmap) sample $(common_sample_params) -o $(SAMPLE_DIR)/$(SAMPLE0).mp.fq -l 100 $(zero_error) $(SAMPLE0_FRAG_MEAN)
+$(SAMPLE_DIR)/$(SAMPLE1).mp%fq $(SAMPLE_DIR)/$(SAMPLE1).mp%fq.2 : $(GEDS)
+	mkdir -p $(SAMPLE_DIR); $(gedmap) sample $(common_sample_params) -o $(SAMPLE_DIR)/$(SAMPLE1).mp.fq -l 100 $(low_error)  $(SAMPLE1_FRAG_MEAN)
+$(SAMPLE_DIR)/$(SAMPLE3).mp%fq $(SAMPLE_DIR)/$(SAMPLE3).mp%fq.2 : $(GEDS)
+	mkdir -p $(SAMPLE_DIR); $(gedmap) sample $(common_sample_params) -o $(SAMPLE_DIR)/$(SAMPLE3).mp.fq -l 100 $(high_error) $(SAMPLE0_FRAG_MEAN)
+$(SAMPLE_DIR)/$(SAMPLE8).mp%fq $(SAMPLE_DIR)/$(SAMPLE8).mp%fq.2 : $(GEDS)
+	mkdir -p $(SAMPLE_DIR); $(gedmap) sample $(common_sample_params) -o $(SAMPLE_DIR)/$(SAMPLE8).mp.fq -l 500 $(zero_error) $(SAMPLE8_FRAG_MEAN)
+$(SAMPLE_DIR)/$(SAMPLE9).mp%fq $(SAMPLE_DIR)/$(SAMPLE9).mp%fq.2 : $(GEDS)
+	mkdir -p $(SAMPLE_DIR); $(gedmap) sample $(common_sample_params) -o $(SAMPLE_DIR)/$(SAMPLE9).mp.fq -l 500 $(low_error)  $(SAMPLE9_FRAG_MEAN)
+$(SAMPLE_DIR)/$(SAMPLE11).mp%fq $(SAMPLE_DIR)/$(SAMPLE11).mp%fq.2 : $(GEDS)
+	mkdir -p $(SAMPLE_DIR); $(gedmap) sample $(common_sample_params) -o $(SAMPLE_DIR)/$(SAMPLE11).mp.fq -l 500 $(high_error) $(SAMPLE11_FRAG_MEAN)
 
 samples/all: $(GEDS)
 	for target in $(SAMPLES); do make $(SAMPLE_DIR)/$${target}.fq ; done
@@ -162,6 +185,22 @@ $(GEDMAP_DIR)/reads.in-order.sam: $(MINI) $(READS)
 	$(gedmap) align  $(GEDS) $(READS)  $(common_align_params) -o  $(GEDMAP_DIR)/reads.in-order.sam   $(GEDMAP_PARAMS_READ) -io
 $(GEDMAP_DIR)/reads2.in-order.sam: $(MINI) $(READS2)
 	$(gedmap) align  $(GEDS) $(READS2)  $(common_align_params) -o  $(GEDMAP_DIR)/reads2.in-order.sam   $(GEDMAP_PARAMS_READ) -io
+##### paired-end #####
+$(GEDMAP_DIR)/$(SAMPLE0).mp.sam:  $(MINI) $(SAMPLE_DIR)/$(SAMPLE0).mp.fq  $(SAMPLE_DIR)/$(SAMPLE0).mp.fq.2
+	$(gedmap) align  $(GEDS) $(SAMPLE_DIR)/$(SAMPLE0).mp.fq  $(common_align_params) -o  $(GEDMAP_DIR)/$(SAMPLE0).mp.sam  -mp $(SAMPLE_DIR)/$(SAMPLE0).mp.fq.2  $(SAMPLE0_FRAG_MEAN)
+$(GEDMAP_DIR)/$(SAMPLE1).mp.sam:  $(MINI) $(SAMPLE_DIR)/$(SAMPLE1).mp.fq  $(SAMPLE_DIR)/$(SAMPLE1).mp.fq.2
+	$(gedmap) align  $(GEDS) $(SAMPLE_DIR)/$(SAMPLE1).mp.fq  $(common_align_params) -o  $(GEDMAP_DIR)/$(SAMPLE1).mp.sam  -mp $(SAMPLE_DIR)/$(SAMPLE1).mp.fq.2  $(SAMPLE1_FRAG_MEAN)
+$(GEDMAP_DIR)/$(SAMPLE3).mp.sam:  $(MINI) $(SAMPLE_DIR)/$(SAMPLE3).mp.fq  $(SAMPLE_DIR)/$(SAMPLE3).mp.fq.2
+	$(gedmap) align  $(GEDS) $(SAMPLE_DIR)/$(SAMPLE3).mp.fq  $(common_align_params) -o  $(GEDMAP_DIR)/$(SAMPLE3).mp.sam  -mp $(SAMPLE_DIR)/$(SAMPLE3).mp.fq.2  $(SAMPLE3_FRAG_MEAN)
+$(GEDMAP_DIR)/$(SAMPLE8).mp.sam:  $(MINI) $(SAMPLE_DIR)/$(SAMPLE8).mp.fq  $(SAMPLE_DIR)/$(SAMPLE8).mp.fq.2
+	$(gedmap) align  $(GEDS) $(SAMPLE_DIR)/$(SAMPLE8).mp.fq  $(common_align_params) -o  $(GEDMAP_DIR)/$(SAMPLE8).mp.sam  -mp $(SAMPLE_DIR)/$(SAMPLE8).mp.fq.2  $(SAMPLE8_FRAG_MEAN)
+$(GEDMAP_DIR)/$(SAMPLE9).mp.sam:  $(MINI) $(SAMPLE_DIR)/$(SAMPLE9).mp.fq  $(SAMPLE_DIR)/$(SAMPLE9).mp.fq.2
+	$(gedmap) align  $(GEDS) $(SAMPLE_DIR)/$(SAMPLE9).mp.fq  $(common_align_params) -o  $(GEDMAP_DIR)/$(SAMPLE9).mp.sam  -mp $(SAMPLE_DIR)/$(SAMPLE9).mp.fq.2  $(SAMPLE9_FRAG_MEAN)
+$(GEDMAP_DIR)/$(SAMPLE11).mp.sam: $(MINI) $(SAMPLE_DIR)/$(SAMPLE11).mp.fq $(SAMPLE_DIR)/$(SAMPLE11).mp.fq.2
+	$(gedmap) align  $(GEDS) $(SAMPLE_DIR)/$(SAMPLE11).mp.fq $(common_align_params) -o  $(GEDMAP_DIR)/$(SAMPLE11).mp.sam -mp $(SAMPLE_DIR)/$(SAMPLE11).mp.fq.2 $(SAMPLE11_FRAG_MEAN)
+
+$(GEDMAP_DIR)/reads.mp.sam: $(MINI) $(READS) $(READS_MP)
+	$(gedmap) align $(GEDS) $(READS) $(common_align_params) -mp $(READS_MP) -o $(GEDMAP_DIR)/reads.mp.sam $(GEDMAP_PARAMS_READ_MP)
 
 ################## EVALUATE INDEX WITH DIFFERENT PARAMETER
 IDX_EVAL_DIR  = $(GEDMAP_DIR)/eval_indexes/
@@ -422,8 +461,23 @@ $(GIRAFFE_DIR)/$(SAMPLE_OE).sam:  $(SAMPLE_DIR)/$(SAMPLE_OE).fq $(gbz)
 	$(vg) giraffe -Z $(gbz) -f $(SAMPLE_DIR)/$(SAMPLE_OE).fq $(GIRAFFE_PARAMS) > $(GIRAFFE_DIR)/$(SAMPLE_OE).sam
 $(GIRAFFE_DIR)/reads.sam:  $(READS) $(gbz)
 	$(vg) giraffe -Z $(gbz) -f $(READS) $(GIRAFFE_PARAMS) > $(GIRAFFE_DIR)/reads.sam
-$(GIRAFFE_DIR)/reads2.sam:  $(READS) $(gbz)
+$(GIRAFFE_DIR)/reads2.sam:  $(READS2) $(gbz)
 	$(vg) giraffe -Z $(gbz) -f $(READS2) $(GIRAFFE_PARAMS) > $(GIRAFFE_DIR)/reads2.sam
+##### Paired-end #####
+$(GIRAFFE_DIR)/reads.mp.sam:  $(READS) $(READS_MP) $(gbz)
+	$(vg) giraffe -Z $(gbz) -f  $(READS) -f $(READS_MP) $(GIRAFFE_PARAMS) -fragment-mean 160 > $(GIRAFFE_DIR)/reads.mp.sam
+$(GIRAFFE_DIR)/$(SAMPLE0).mp.sam:  $(SAMPLE_DIR)/$(SAMPLE0).mp.fq  $(SAMPLE_DIR)/$(SAMPLE0).mp.fq  $(gbz)
+	$(vg) giraffe -Z $(gbz) -f  $(SAMPLE_DIR)/$(SAMPLE0).mp.fq -f $(SAMPLE_DIR)/$(SAMPLE0).mp.fq.2  $(GIRAFFE_PARAMS) > $(GIRAFFE_DIR)/$(SAMPLE0).mp.sam
+$(GIRAFFE_DIR)/$(SAMPLE1).mp.sam:  $(SAMPLE_DIR)/$(SAMPLE1).mp.fq  $(SAMPLE_DIR)/$(SAMPLE1).mp.fq  $(gbz)
+	$(vg) giraffe -Z $(gbz) -f  $(SAMPLE_DIR)/$(SAMPLE1).mp.fq -f $(SAMPLE_DIR)/$(SAMPLE1).mp.fq.2  $(GIRAFFE_PARAMS) > $(GIRAFFE_DIR)/$(SAMPLE1).mp.sam
+$(GIRAFFE_DIR)/$(SAMPLE3).mp.sam:  $(SAMPLE_DIR)/$(SAMPLE3).mp.fq  $(SAMPLE_DIR)/$(SAMPLE3).mp.fq  $(gbz)
+	$(vg) giraffe -Z $(gbz) -f  $(SAMPLE_DIR)/$(SAMPLE3).mp.fq -f $(SAMPLE_DIR)/$(SAMPLE3).mp.fq.2  $(GIRAFFE_PARAMS) > $(GIRAFFE_DIR)/$(SAMPLE3).mp.sam
+$(GIRAFFE_DIR)/$(SAMPLE8).mp.sam:  $(SAMPLE_DIR)/$(SAMPLE8).mp.fq  $(SAMPLE_DIR)/$(SAMPLE8).mp.fq  $(gbz)
+	$(vg) giraffe -Z $(gbz) -f  $(SAMPLE_DIR)/$(SAMPLE8).mp.fq -f $(SAMPLE_DIR)/$(SAMPLE8).mp.fq.2  $(GIRAFFE_PARAMS) > $(GIRAFFE_DIR)/$(SAMPLE8).mp.sam
+$(GIRAFFE_DIR)/$(SAMPLE9).mp.sam:  $(SAMPLE_DIR)/$(SAMPLE9).mp.fq  $(SAMPLE_DIR)/$(SAMPLE9).mp.fq  $(gbz)
+	$(vg) giraffe -Z $(gbz) -f  $(SAMPLE_DIR)/$(SAMPLE9).mp.fq -f $(SAMPLE_DIR)/$(SAMPLE9).mp.fq.2  $(GIRAFFE_PARAMS) > $(GIRAFFE_DIR)/$(SAMPLE9).mp.sam
+$(GIRAFFE_DIR)/$(SAMPLE11).mp.sam: $(SAMPLE_DIR)/$(SAMPLE11).mp.fq $(SAMPLE_DIR)/$(SAMPLE11).mp.fq $(gbz)
+	$(vg) giraffe -Z $(gbz) -f $(SAMPLE_DIR)/$(SAMPLE11).mp.fq -f $(SAMPLE_DIR)/$(SAMPLE11).mp.fq.2 $(GIRAFFE_PARAMS) > $(GIRAFFE_DIR)/$(SAMPLE11).mp.sam
 
 $(GIRAFFE_DIR)/index.out:
 	mkdir -p $(GIRAFFE_DIR)

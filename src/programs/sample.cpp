@@ -9,10 +9,10 @@ using namespace sdsl;
 
 namespace gedmap_sample{
 
-std::mt19937 g1 (0);	
-	
+std::vector<std::mt19937> g1;
+
 uint32_t rand_ui(){
-	return g1();
+	return g1[omp_get_thread_num()]();
 }
 
 
@@ -39,32 +39,27 @@ uint32_t get_rand_position_before_edge(adjacency & adj){
 	return node_pos - 50;
 }
 
-tuple<string,string,uint32_t> add_errors(string read);
+tuple<string,string,uint32_t> add_errors(string read, uint32_t target_length);
 
 
 string a_sample(string & EDS, pos_EDS_to_FA_type & p2FA, adjacency & adj){
-	
-	
 	string read = "";
 	std::stringstream sample_stream;
 	uint32_t pos = -1;
 	uint32_t length = (uint32_t)((double)LENGTH * 2 );
 	
-	while(read.size()  < length){
-		#pragma omp critical
-		{
-			pos = rand_ui() % (EDS.size()-LENGTH);
-			if(over_edges) pos = get_rand_position_before_edge(adj);
-		}
+	while(read.size() < length){
+		pos = rand_ui() % (EDS.size()-LENGTH);
+		if(over_edges) pos = get_rand_position_before_edge(adj);
 		if(!p2FA.empty() && !p2FA.ref_ind[pos]) continue; //when transform is used then dont start at variant positions
-		read = read_EDS_substring(pos, EDS, adj,length);
+		read = read_EDS_substring(pos, EDS, adj, length);
 		//when read_EDS_substring returns an error or a too short read we just try again
 	}
 	
 	string 	sample;
 	string 	CIGAR;
 	uint32_t 	D;
-	tie		(sample,CIGAR,D) = add_errors(read);
+	tie		(sample,CIGAR,D) = add_errors(read, LENGTH);
 	
 	bool rc = RC_RATE && !(rand_ui() % RC_RATE);
 	if(rc) sample = gedmap_encode::rev_complement(sample);
@@ -73,7 +68,7 @@ string a_sample(string & EDS, pos_EDS_to_FA_type & p2FA, adjacency & adj){
 			
 	string chrom_name = "";
 	uint32_t off;
-	pos++;// 1-indicated
+	pos++;// 1-indexed
 	
 	uint32_t chrom_pos = 0;
 	
@@ -85,12 +80,57 @@ string a_sample(string & EDS, pos_EDS_to_FA_type & p2FA, adjacency & adj){
 		<< "_DIST_" << D
 		<< "_CIGAR_"<< CIGAR 
 		<< (rc?"_rc":"")
-		<< endl;
+		<< '\n';
 	
-	sample_stream << sample << "\n+\n" << string(sample.size(),'?') << endl;			
+	sample_stream << sample << "\n+\n" << string(sample.size(),'?') << '\n';
 	return sample_stream.str();
 }
 
+std::pair<std::string,std::string> mp_sample(string & EDS, pos_EDS_to_FA_type & p2FA, adjacency & adj) {
+	string read;
+	uint32_t pos = -1;
+	uint32_t length = FRAGMENT_LENGTH * 2;
+	
+	while (read.size() < length){
+		pos = rand_ui() % (EDS.size() - FRAGMENT_LENGTH);
+		if(over_edges) pos = get_rand_position_before_edge(adj);
+		if (!p2FA.empty() && !p2FA.ref_ind[pos]) continue; //when transform is used then dont start at variant positions
+		read = read_EDS_substring(pos, EDS, adj,length);
+		//when read_EDS_substring returns an error or a too short read we just try again
+	}
+	
+	auto[sample, CIGAR, D] = add_errors(read, FRAGMENT_LENGTH);
+	
+	bool rc = RC_RATE && !(rand_ui() % RC_RATE);
+	std::string sample_rev = gedmap_encode::rev_complement(sample);
+	if(rc) std::swap(sample, sample_rev);
+	
+	//CIGAR = gedmap_encode::RL_encode(CIGAR);
+			
+	string chrom_name = "";
+	uint32_t off;
+	pos++; // 1-indexed
+	
+	uint32_t chrom_pos = 0;
+	
+	if (!p2FA.empty()) tie(chrom_name, chrom_pos, off) = p2FA(pos);
+	else chrom_name = '?', chrom_pos = pos;
+	
+	const auto gen = [&](bool ot, const std::string& s, size_t len) {
+		std::stringstream str;
+		str << "@ref_" << chrom_name 
+			<< "_pos_" << chrom_pos
+			<< (rc?"_rc":"")
+			<< '/' << char('1' + ot)
+			<< '\n'
+			<< s.substr(0, len)
+			<< "\n+\n"
+			<< std::string(std::min(len,s.size()), '?')
+			<< '\n';
+		return str.str();
+	};
+	return std::make_pair( gen(false, sample, LENGTH), gen(true, sample_rev, LENGTH) );
+}
 
 int main(int argc,  char** argv){	
 	
@@ -112,31 +152,55 @@ int main(int argc,  char** argv){
 	ofstream fastq;	
 	string fname_out;
 	
-	
 	std::ofstream fastq_mp;
 	
-	
 	handle_input(argc,argv,EDS,adj,p2FA,fastq,fastq_mp,fname_out);
+
+	if (fastq_mp.is_open()) flush_row("Running in paired-end mode");
+
+	{
+		omp_get_max_threads();
+		for (size_t i = 0; i < omp_get_max_threads(); i++)
+			g1.emplace_back(std::mt19937(i * COUNT * 123456LL));
+	}
+	
 	
 	flush_row("Generating: 0%");
-	srand (SEED);
 	
-	
-	vector<string> reads(COUNT);
+	vector<string> reads(COUNT), reads2;
 	uint32_t count = 0;
-	#pragma omp parallel for 
-	for(uint32_t i = 0; i < COUNT;i++){
-		reads[i] = a_sample(EDS, p2FA, adj);
-		
-		#pragma omp critical
-		{
-			count++;
-			if((count*100)%COUNT == 0) flush_row( "Generating: " + to_string((count*100)/COUNT) + "%");
+	if (fastq_mp.is_open())
+	{
+		reads2.resize(COUNT);
+		#pragma omp parallel for 
+		for(uint32_t i = 0; i < COUNT;i++){
+			std::tie(reads[i], reads2[i]) = mp_sample(EDS, p2FA, adj);
+			
+			#pragma omp critical
+			{
+				count++;
+				if ((count*100)%COUNT == 0) flush_row( "Generating: " + to_string((count*100)/COUNT) + "%");
+			}
+		}
+		for (const auto& rd2 : reads2)
+			fastq_mp << rd2;
+		fastq_mp.close();
+	}
+	else
+	{
+		#pragma omp parallel for 
+		for(uint32_t i = 0; i < COUNT;i++){
+			reads[i] = a_sample(EDS, p2FA, adj);
+			
+			#pragma omp critical
+			{
+				count++;
+				if((count*100)%COUNT == 0) flush_row( "Generating: " + to_string((count*100)/COUNT) + "%");
+			}
 		}
 	}
 	
 	for(uint32_t i = 0; i < COUNT;i++) fastq << reads[i];
-	
 	
 	flush_row( to_string(COUNT) + "/" + to_string(COUNT));
 	fastq.close();	
@@ -279,14 +343,14 @@ string read_EDS_substring( uint32_t start_pos, string & EDS, adjacency & adj, ui
 	return read;
 }
 
-tuple<string,string,uint32_t> add_errors(string read){
+tuple<string,string,uint32_t> add_errors(string read, uint32_t target_length){
 	stringstream  sample;
 	stringstream CIGAR;
 	uint32_t D = 0;
 	uint32_t written = 0;
 	uint32_t i = 0;
 	
-	while(written < LENGTH){
+	while (written < target_length){
 		char c = read[i++];
 		
 		if( IN_RATE &&  !(rand_ui()%IN_RATE)){

@@ -86,7 +86,7 @@ namespace gedmap_sample{
 	
 	bool 	over_edges				= false;
 
-	uint32_t FRAGMENT_LENGTH = std::numeric_limits<uint32_t>::max(); // -fc
+	uint32_t FRAGMENT_LENGTH = std::numeric_limits<uint32_t>::max(); // -fragment-mean
 	uint32_t COUNT 		= COUNT_DEFAULT; //-c
 	uint32_t LENGTH		= LENGTH_DEFAULT; //-l
 	uint32_t ERROR_RATE	= ERROR_RATE_DEFAULT; //-e

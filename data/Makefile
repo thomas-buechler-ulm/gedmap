@@ -92,6 +92,10 @@ reads.fq:
 	gzip -d SRR769545_2.fastq.gz
 	head -n 40000000 SRR769545_2.fastq > reads.fq
 	rm SRR769545_2.fastq
+	wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR769/SRR769545/SRR769545_1.fastq.gz
+	gzip -d SRR769545_1.fastq.gz
+	head -n 40000000 SRR769545_1.fastq > reads.fq.2
+	rm SRR769545_1.fastq
 
 reads2.fq:
 	wget ftp://ftp-trace.ncbi.nih.gov/ReferenceSamples/giab/data/NA12878/Garvan_NA12878_HG001_HiSeq_Exome/NIST7035_TAAGGCGA_L001_R1_001.fastq.gz

@@ -8,9 +8,6 @@
 #include <algorithm>
 #include <cassert>
 
-std::atomic_uint64_t paired_end_skip = 0;
-std::atomic_uint64_t paired_end_skip_queries = 0;
-
 // only search in forward direction
 // query on nullopt
 // f is called with (query payload, payload of min, value)
@@ -177,10 +174,8 @@ void paired_end(F f, std::vector<std::tuple<T, Payload, std::optional<R>>> ts, E
 		//	process_event(t, !!cost);
 		//if (cost and not before_open and (not g or g.next_position() > t))
 		//{
-		//	paired_end_skip_queries.fetch_add(1, std::memory_order_seq_cst);
 		//	const auto d = ts_next_query_open - t - skq.get_skip(t, ts_next_query_open);
 		//	if (d >= dist) {
-		//		paired_end_skip.fetch_add(1, std::memory_order_seq_cst);
 		//		if (const R val = (d - dist) + *cost; val < ts_next_query_add_up.first)
 		//		{
 		//			ts_next_query_add_up = std::make_pair(val, payload);

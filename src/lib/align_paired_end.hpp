@@ -15,7 +15,7 @@ try_mate(
 	const EDGview& edg_view,
 	std::vector< pe_event_type >& events,
 	std::vector< pe_event_type >& events_rev,
-	std::vector<uint32_t> (&left_mate)[2],
+	std::vector<std::pair<uint32_t, uint32_t>> (&left_mate)[2], // (mate idx, dist)
 	const std::vector< temp_alignment<int_type> >& tmp_alignments_l, size_t mam,
 	F mk_hotspot,
 	GET_TMP_ALIGNMENTS get_tmp_alignments,
@@ -36,20 +36,22 @@ try_mate(
 	}
 
 	// rank candidates according to distance to already aligned "tmp_alignments_l"
-	std::vector<std::tuple<uint32_t,bool,double>> opt_mate // (mate index in hotspots_* / pos_pairs_*, r_c, dist)
+	std::vector<std::tuple<uint32_t,bool,float,uint32_t>> opt_mate // (mate index in hotspots_* / pos_pairs_*, r_c, score, dist)
 		( tmp_alignments_l.size()
-		, std::make_tuple(std::numeric_limits<uint32_t>::max(), false, std::numeric_limits<double>::infinity()));
-	paired_end<int64_t, int64_t>([&opt_mate](auto a, auto b, auto val) {
+		, std::make_tuple(std::numeric_limits<uint32_t>::max(), false, std::numeric_limits<float>::infinity(), 0));
+	paired_end<int64_t, int64_t>([&opt_mate](auto a, auto b, auto val, auto dist) {
+			assert(dist >= 0);
 			if (val < std::get<2>(opt_mate[b]))
-				opt_mate[b] = std::make_tuple(a, false, val);
+				opt_mate[b] = std::make_tuple(a, false, val, (uint32_t) dist);
 		},
 		events,
 		edg_view,
 		msq,
 		PE_FRAGMENT_LENGTH);
-	paired_end<int64_t, int64_t>([&opt_mate](auto a, auto b, auto val) {
+	paired_end<int64_t, int64_t>([&opt_mate](auto a, auto b, auto val, auto dist) {
+			assert(dist >= 0);
 			if (val < std::get<2>(opt_mate[b]))
-				opt_mate[b] = std::make_tuple(a, true, val);
+				opt_mate[b] = std::make_tuple(a, true, val, (uint32_t) dist);
 		},
 		events_rev,
 		edg_view,
@@ -67,13 +69,14 @@ try_mate(
 	return [&] {
 		std::vector<hotspot<int_type>> final_hotspots, final_hotspots_r_c;
 		for (size_t i_l = 0; i_l < opt_mate.size(); i_l++) {
-			const auto&[i_r, r_c, val] = opt_mate[i_l];
-			if (val == std::numeric_limits<double>::infinity()) 
+			const auto&[i_r, r_c, val, dist] = opt_mate[i_l];
+			if (val == std::numeric_limits<float>::infinity()) 
 				continue;
-			left_mate[r_c].emplace_back(i_l);
+			auto hotspot = mk_hotspot(r_c, i_r, val);
+			left_mate[r_c].emplace_back(i_l, dist - hotspot.read_pos); // TODO
 
 			(r_c ? final_hotspots_r_c : final_hotspots)
-				.emplace_back(mk_hotspot(r_c, i_r, val));
+				.emplace_back(std::move(hotspot));
 		}
 		std::sort(final_hotspots.begin(), final_hotspots.end(),
 				[&](const auto& lhs, const auto& rhs) {
@@ -91,7 +94,7 @@ try_mate(
 // this adds the hotspots for the lefthand alignment to the events
 // and pairs them
 template<typename int_type, typename Environ>
-std::vector<std::array< temp_alignment<int_type>, 2> >
+std::vector< std::tuple<temp_alignment<int_type>, temp_alignment<int_type>, uint32_t > >
 fallback(
 	const Environ& env,
 	std::vector< pe_event_type >& events,
@@ -103,14 +106,14 @@ fallback(
 	const fasta_read<int_type>& read_l,
 	const fasta_read<int_type>& read_r
 ) {
-	constexpr double INF = std::numeric_limits<double>::infinity();
+	constexpr float INF = std::numeric_limits<float>::infinity();
 	
 	const auto& msq = eget<ED_Graph<uint32_t>>(env);
 
 	const auto& read_l_r_c = read_l.get_rev_compl();
 	const auto& read_r_r_c = read_r.get_rev_compl();
 
-	std::vector< std::tuple<double, uint32_t, uint32_t, bool> > mate_candidates; // (val, idx in hotspots, idx in pos_pairs, r_c)
+	std::vector< std::tuple<float, uint32_t, uint32_t, bool, uint32_t> > mate_candidates; // (val, idx in hotspots, idx in pos_pairs, r_c, dist)
 	{
 		const size_t events_pre_size = events.size(), events_rev_pre_size = events_rev.size();
 
@@ -137,24 +140,26 @@ fallback(
 				else break;
 		}
 
-		std::vector<std::tuple<uint32_t,double>> opt_mate_l // (mate index in pos_pairs_r_r_c, r_c, dist)
+		std::vector<std::tuple<uint32_t,float,uint32_t>> opt_mate_l // (mate index in pos_pairs_r_r_c, r_c, score, dist)
 			( hotspots_l.size()
-			, std::make_tuple(std::numeric_limits<uint32_t>::max(), INF));
-		std::vector<std::tuple<uint32_t,double>> opt_mate_r // (mate index in pos_pairs_l_r_c, dist)
+			, std::make_tuple(std::numeric_limits<uint32_t>::max(), INF, 0));
+		std::vector<std::tuple<uint32_t,float,uint32_t>> opt_mate_r // (mate index in pos_pairs_l_r_c, score, dist)
 			( hotspots_r.size()
-			, std::make_tuple(std::numeric_limits<uint32_t>::max(), INF));
+			, std::make_tuple(std::numeric_limits<uint32_t>::max(), INF, 0));
 
-		paired_end<int64_t, int64_t>([&opt_mate_l](auto a, auto b, auto val) {
+		paired_end<int64_t, int64_t>([&opt_mate_l](auto a, auto b, auto val, auto dist) {
+				assert(dist >= 0);
 				if (val < std::get<1>(opt_mate_l[b]))
-					opt_mate_l[b] = std::make_tuple(a, val);
+					opt_mate_l[b] = std::make_tuple(a, val, (uint32_t) dist);
 			},
 			events,
 			EDG_view<uint32_t>{&msq},
 			msq,
 			PE_FRAGMENT_LENGTH);
-		paired_end<int64_t, int64_t>([&opt_mate_r](auto a, auto b, auto val) {
+		paired_end<int64_t, int64_t>([&opt_mate_r](auto a, auto b, auto val, auto dist) {
+				assert(dist >= 0);
 				if (val < std::get<1>(opt_mate_r[b]))
-					opt_mate_r[b] = std::make_tuple(a, val);
+					opt_mate_r[b] = std::make_tuple(a, val, (uint32_t) dist);
 			},
 			events_rev,
 			EDG_view<uint32_t>{&msq},
@@ -174,7 +179,8 @@ fallback(
 					std::get<1>(opt_mate[i]),
 					i,
 					std::get<0>(opt_mate[i]),
-					r_c);
+					r_c,
+					std::get<2>(opt_mate[i]));
 			}
 		}
 		std::sort(mate_candidates.begin(), mate_candidates.end(), [](const auto& lhs, const auto& rhs) {
@@ -186,10 +192,10 @@ fallback(
 
 	uint32_t D = MAX_DIST.back();
 
-	std::vector< std::array<temp_alignment<int_type>, 2> > tmp_alignments;
+	std::vector< std::tuple<temp_alignment<int_type>, temp_alignment<int_type>, uint32_t> > tmp_alignments;
 
 	for (size_t i = 0; i < mate_candidates.size() and i < MAX_ALIGNS_T_FALLBACK and tmp_alignments.size() < MAX_ALIGNS_C[0]; i++) {
-		const auto&[_, hotspot_idx, pos_pair_idx, r_c] = mate_candidates[i];
+		const auto&[_, hotspot_idx, pos_pair_idx, r_c, dist] = mate_candidates[i];
 		const auto&[read_left, read_right] = r_c
 			? std::tie(read_r, read_l_r_c)
 			: std::tie(read_l, read_r_r_c);
@@ -217,7 +223,7 @@ fallback(
 
 		D = std::max( tmp_ali_left.get_dist(), tmp_ali_right.get_dist() );
 
-		tmp_alignments.push_back({{std::move(tmp_ali_left), std::move(tmp_ali_right)}});
+		tmp_alignments.emplace_back(std::move(tmp_ali_left), std::move(tmp_ali_right), dist + hotspot.read_pos + read_right.sequence.size() - pos_pair.read_pos);
 
 		if (D < gedmap_align_min::DOUBT_DIST)
 			break;
@@ -227,7 +233,7 @@ fallback(
 }
 
 template<typename int_type, bool reverse = false, typename Environ>
-std::array< std::vector<alignment<int_type>>, 2 >
+std::vector<alignment_mate_pair<int_type>>
 try_pair(
 	const Environ& env,
 	const fasta_read<int_type>& read_a,
@@ -267,7 +273,7 @@ try_pair(
 	size_t last_SPOT_HITS;
 
 		
-	std::vector<uint32_t> left_mate[2]; // not-rev, rev
+	std::vector<std::pair<uint32_t, uint32_t>> left_mate[2]; // not-rev, rev: <idx, dist>
 
 	for (size_t num_try = 0; num_try < std::max(MAX_ALIGNS_T.size(), MAX_ALIGNS_M.size()); num_try++) {
 		const size_t align_idx = std::min(num_try, MAX_ALIGNS_T.size() - 1);
@@ -302,9 +308,9 @@ try_pair(
 			events, events_rev,
 			left_mate,
 			tmp_alignments_l, MAX_ALIGNS_M[pair_idx],
-			[&] (bool r_c, uint32_t i_r, double val) {
+			[&] (bool r_c, uint32_t i_r, float val) {
 				const auto& [eds_pos, read_pos] = (r_c ? pos_pairs_a_r_c : pos_pairs_b_r_c)[i_r];
-				return hotspot<int_type>(eds_pos, read_pos, (int_type) std::max(0.0, PE_FRAGMENT_LENGTH - (double)val));
+				return hotspot<int_type>(eds_pos, read_pos, (int_type) std::max(0.0f, 5.f * PE_FRAGMENT_LENGTH - (float)val));
 			},
 			[&] (std::vector<hotspot<int_type>>&& hotspots_l, std::vector<hotspot<int_type>>&& hotspots_c) {
 				return read_processor::align<int_type>
@@ -320,36 +326,31 @@ try_pair(
 
 	if (not tmp_alignments_r.empty())
 	{ // we have found a mate pair
-		std::vector<std::tuple<uint32_t, uint32_t, uint32_t>> mates; // score, tmp_l, tmp_r
+		std::vector<std::tuple<uint32_t, uint32_t, uint32_t, uint32_t>> mates; // score, tmp_l, tmp_r, dist
 		for (size_t i = 0; i < tmp_alignments_r.size(); i++) {
-			const auto src = left_mate[ tmp_alignments_r[i].reverse_compl ][ tmp_alignments_r[i].source ];
+			const bool r_c = tmp_alignments_r[i].reverse_compl;
+			const auto&[src, dist] = left_mate[ r_c ][ tmp_alignments_r[i].source ];
 			assert(tmp_alignments_l[src].reverse_compl == tmp_alignments_r[i].reverse_compl);
 
 			mates.emplace_back( tmp_alignments_l[src].get_dist() + tmp_alignments_r[i].get_dist(),
-					src, i);
+					src, i,
+					dist + (r_c ? read_a_r_c : read_b_r_c).sequence.size() ); // TODO
 		}
 		std::sort(mates.begin(), mates.end(), [](const auto& lhs, const auto& rhs) {
 			return std::get<0>(lhs) < std::get<0>(rhs);
 		});
 
-		if (mates.size() > MAX_ALIGNS_O)
-			mates.resize(MAX_ALIGNS_O);
-		std::vector<temp_alignment<int_type>> tmp_l(mates.size()), tmp_r(mates.size());
-		for (size_t i = 0; i < mates.size(); i++) {
-			tmp_l[i] = tmp_alignments_l[std::get<1>(mates[i])];
-			tmp_r[i] = tmp_alignments_r[std::get<2>(mates[i])];
-		}
-		return {
-			read_processor::finalize_alignments(read_a, read_b, env, tmp_l, MAX_ALIGNS_O, tmp_r),
-			read_processor::finalize_alignments(read_b_r_c, read_a_r_c, env, tmp_r, MAX_ALIGNS_O, tmp_l)
-		};
+		return read_processor::finalize_alignments(read_a, read_b, read_b_r_c, read_a_r_c, env, MAX_ALIGNS_O, mates.size(),
+				[&](size_t i) -> auto& { return tmp_alignments_l[ std::get<1>(mates[i]) ]; },
+				[&](size_t i) -> auto& { return tmp_alignments_r[ std::get<2>(mates[i]) ]; },
+				[&](size_t i) { return std::get<3>(mates[i]); });
 	}
 	else
 	{ // we have not found mate pairs
 		if constexpr (not reverse)
 		{ // fallback
-			if (not FALLBACK) // no fallback
-				return {{{}, {}}};
+			if (not FALLBACK)
+				return {};
 
 			tried_fallback = true;
 			auto tmp_alignments = fallback<int_type>(
@@ -359,16 +360,12 @@ try_pair(
 				pos_pairs_a_r_c, pos_pairs_b_r_c,
 				read_a, read_b);
 			std::sort(tmp_alignments.begin(), tmp_alignments.end(), [](const auto& lhs, const auto& rhs) {
-				return lhs[0].get_dist() + lhs[1].get_dist() < rhs[0].get_dist() + rhs[1].get_dist();
+				return std::get<0>(lhs).get_dist() + std::get<1>(lhs).get_dist() < std::get<0>(rhs).get_dist() + std::get<1>(rhs).get_dist();
 			});
-			std::vector< temp_alignment<int_type> > tmp_left, tmp_right;
-			tmp_left.resize(std::min<size_t>(MAX_ALIGNS_O, tmp_alignments.size())), tmp_right.resize(tmp_left.size());
-			for (size_t i = 0; i < tmp_left.size(); i++)
-				std::tie(tmp_left[i], tmp_right[i]) = std::tie(tmp_alignments[i][0], tmp_alignments[i][1]);
-			return {
-				read_processor::finalize_alignments(read_a, read_b, env, tmp_left, MAX_ALIGNS_O),
-				read_processor::finalize_alignments(read_b_r_c, read_a_r_c, env, tmp_right, MAX_ALIGNS_O)
-			};
+			return read_processor::finalize_alignments(read_a, read_b, read_b_r_c, read_a_r_c, env, MAX_ALIGNS_O, tmp_alignments.size(),
+					[&](size_t i) -> auto& { return std::get<0>(tmp_alignments[i]); },
+					[&](size_t i) -> auto& { return std::get<1>(tmp_alignments[i]); },
+					[&](size_t i) { return std::get<2>(tmp_alignments[i]); });
 		}
 		else
 		{ // try matching right alignments to left query_positions
@@ -390,7 +387,7 @@ try_pair(
 // align left part of fragment to reference ("left" according to the reference)
 // NOTE: align_r_c = true means that the entire fragment is the reverse-complement
 template<typename int_type, typename Environ>
-std::array< std::vector<alignment<int_type>>, 2 >
+std::vector< alignment_mate_pair<int_type> >
 pair_read(
 	const Environ& env,
 	const fasta_read<int_type>& read_l,
@@ -483,12 +480,12 @@ map_pairs(
 		}
 
 		bool fallback_tried = false;
-		auto[alignments_l, alignments_r] = pair_read<int_type>(env, read_l, read_r, fallback_tried);
+		auto alignments = pair_read<int_type>(env, read_l, read_r, fallback_tried);
 
 		#pragma omp critical
 		{
 			const auto cnt = read_processor::write_aligned_mates(
-				alignments_l, alignments_r,
+				alignments,
 				read_l, read_r,
 				o_s,
 				p2FA);

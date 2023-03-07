@@ -22,13 +22,8 @@ max_opt(
 		return rhs;
 }
 
-
-size_t num_merges = 0;
-size_t sum_merges = 0;
-
 template<typename T, typename R, typename Payload>
 class fast_frontier {
-public: // TODO: remove
 	static_assert(std::is_signed_v<T>);
 	T dist;
 	T m_shift = 0;
@@ -76,6 +71,7 @@ public: // TODO: remove
 		return up;
 	}
 public:
+	bool down_is_empty() const { return down.empty(); }
 	T max_t() const {
 		if (down.empty())
 			return T{0};
@@ -100,8 +96,8 @@ public:
 		t -= m_shift;
 		commit_down(t); commit_up(t);
 	}
-	using query_result_types = std::tuple<Payload, R, std::pair<Payload, R>>;
-	template< typename Res = std::pair<Payload, R> >
+	using query_result_types = std::tuple<Payload, R, std::tuple<Payload, T, R>>;
+	template< typename Res = std::tuple<Payload, T, R> >
 	std::optional<Res> query(T t) {
 		//std::cerr << " query(" << t << ")  m_shift: " << m_shift << std::endl;
 		t -= m_shift;
@@ -114,10 +110,9 @@ public:
 				return res->payload;
 			else if constexpr (std::is_same_v<Res, R>)
 				return eval(*res, t);
-			else if constexpr (std::is_same_v<Res, std::pair<Payload, R>>) {
+			else if constexpr (std::is_same_v<Res, std::tuple<Payload, T, R>>) {
 				auto val = eval(*res, t);
-				res->min_x -= dist - m_shift;
-				return std::make_pair(res->payload, std::move(val));
+				return std::make_tuple(res->payload, (t + dist) - res->min_x, std::move(val));
 			} else if constexpr (std::is_same_v<Res, P>) {
 				res->min_x -= dist - m_shift;
 				return res;
@@ -221,18 +216,15 @@ public:
 		//	add(t, r);
 		//}
 
-		num_merges++;
 		{ // set union
 			size_t l = 0, r = mid;
 			while (l < mid and r < a.size()) {
 				if (a[l].min_x < a[r].min_x) {
 					add(a[l].min_x, a[l].min_y, a[l].payload);
-					sum_merges++;
 					while (r < a.size() and a[l].eq(a[r])) r++;
 					l++;
 				} else {
 					add(a[r].min_x, a[r].min_y, a[r].payload);
-					sum_merges++;
 					while (l < mid and a[l].eq(a[r])) l++;
 					r++;
 				}

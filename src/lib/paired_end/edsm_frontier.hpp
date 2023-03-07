@@ -36,7 +36,7 @@ void paired_end(F f, std::vector<std::tuple<T, Payload, std::optional<R>>> ts, E
 		assert(g);
 		fr.commit(g.next_position());
 		
-		if (!fr.down.empty() and g.next_event_type() == VAR_OPEN) {
+		if (!fr.down_is_empty() and g.next_event_type() == VAR_OPEN) {
 			if (const auto[min_dist, close, all_eq, num_skip] = g.get_open_payload(); all_eq and close <= t) {
 				// skip this variant site
 				const auto open = g.next_position();
@@ -71,7 +71,7 @@ void paired_end(F f, std::vector<std::tuple<T, Payload, std::optional<R>>> ts, E
 			
 			return;
 		}
-		if (!before_open and add_ev and fr.down.empty()) {
+		if (!before_open and add_ev and fr.down_is_empty()) {
 			//	add: clear everything and restart
 			if (auto q = fr.template query<double>(t); !q or *q > max_err) {
 				if (g.seek(t))
@@ -79,7 +79,7 @@ void paired_end(F f, std::vector<std::tuple<T, Payload, std::optional<R>>> ts, E
 			}
 		}
 
-		if (g.next_event_type() == VAR_OPEN and fr.down.empty()) {
+		if (g.next_event_type() == VAR_OPEN and fr.down_is_empty()) {
 			// TODO: maybe use the slow way for short distances
 			const auto p = g.next_position();
 			if (g.seek(t)) {
@@ -221,8 +221,8 @@ void paired_end(F f, std::vector<std::tuple<T, Payload, std::optional<R>>> ts, E
 		if (!cost)
 		{ // perform query
 			//std::cerr << "QUERY " << t << " : " << fr.template query<R>(t) << std::endl;
-			if (const auto res = fr.template query<>(t); res and res->second <= max_err) {
-				f(payload, res->first, res->second);
+			if (const auto res = fr.template query<>(t); res and std::get<2>(*res) <= max_err) {
+				f(payload, std::get<0>(*res), std::get<2>(*res), std::get<1>(*res));
 			}
 		}
 		else

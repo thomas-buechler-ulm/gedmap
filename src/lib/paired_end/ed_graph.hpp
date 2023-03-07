@@ -220,7 +220,7 @@ public:
 	}
 	inline void skip_events(ptrdiff_t n) {
 		if constexpr (reverse) {
-			assert(i >= n);
+			assert((ptrdiff_t)i >= n);
 			i -= n;
 		} else {
 			assert(i + n < m_num_events);

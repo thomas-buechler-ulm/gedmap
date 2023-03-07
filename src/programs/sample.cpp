@@ -160,7 +160,7 @@ int main(int argc,  char** argv){
 
 	{
 		omp_get_max_threads();
-		for (size_t i = 0; i < omp_get_max_threads(); i++)
+		for (int i = 0; i < omp_get_max_threads(); i++)
 			g1.emplace_back(std::mt19937(i * COUNT * 123456LL));
 	}
 	

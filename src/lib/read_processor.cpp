@@ -89,6 +89,11 @@ struct alignment {
 	{ }
 	constexpr alignment() = default;
 };
+template<typename int_type>
+struct alignment_mate_pair {
+	alignment<int_type> l, r;
+	uint32_t dist = 0;
+};
 
 template <typename int_type>
 struct fasta_read;
@@ -515,6 +520,38 @@ namespace read_processor {
 		}
 		return res;
 	}
+	template<typename int_type, typename Environ, typename F1, typename F2, typename F3>
+	std::vector<alignment_mate_pair<int_type>>
+	finalize_alignments(
+		const fasta_read<int_type>& read_l,
+		const fasta_read<int_type>& read_l_r_c,
+		const fasta_read<int_type>& read_r,
+		const fasta_read<int_type>& read_r_r_c,
+		const Environ& env,
+		const size_t max_out,
+		size_t num,
+		F1 get_l, F2 get_r, F3 get_dist
+	) {
+		double sum_sum_base_q = 0;
+		for (size_t i = 0; i < num; i++)
+			sum_sum_base_q += exp10(-0.1 * (get_l(i).sum_base_q + get_r(i).sum_base_q));
+
+		const size_t num_out = std::min(max_out, num);
+		std::vector<alignment_mate_pair<int_type>> res(num_out);
+		for (size_t i = 0; i < num_out; i++) {
+			auto l = std::move(get_l(i)), r = std::move(get_r(i));
+			assert( l.reverse_compl == r.reverse_compl );
+			const double mapq = 1.0 - exp10(-0.1 * (l.sum_base_q + r.sum_base_q)) / sum_sum_base_q;
+			const auto& l_read = l.reverse_compl ? read_l_r_c : read_l;
+			const auto& r_read = l.reverse_compl ? read_r_r_c : read_r;
+			auto cigar_l = align_dp<true, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), l.eds_pos, l_read.sequence, l_read.qual, l.read_pos, l.dist);
+			auto cigar_r = align_dp<true, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), r.eds_pos, r_read.sequence, r_read.qual, r.read_pos, r.dist);
+			res[i].l = alignment<int_type>(std::move(cigar_l), l.get_dist(), l.ali_start_eds, l.reverse_compl, mapq);
+			res[i].r = alignment<int_type>(std::move(cigar_r), r.get_dist(), r.ali_start_eds, r.reverse_compl, mapq);
+			res[i].dist = get_dist(i);
+		}
+		return res;
+	}
 
 	template<typename int_type, typename Environ>
 	std::vector<alignment<int_type>>
@@ -643,7 +680,7 @@ namespace read_processor {
 	) {
 		string 	QNAME	= read.id.substr(1);
 		string	RNAME	= "*";
-		uint32_t 	POS		= 0;
+		uint64_t 	POS		= 0;
 		uint32_t	MAPQ 	= 255; //TODO
 		string 	CIGAR	= "*";
 		string 	RNEXT 	= "*";
@@ -712,23 +749,22 @@ namespace read_processor {
 			transform);
 	}
 
+	const std::string EQ = "=";
 	template<typename int_type>
 	uint32_t
 	write_aligned_mates(
-		const std::vector< alignment<int_type> >& alignments_l,
-		const std::vector< alignment<int_type> >& alignments_r,
+		const std::vector< alignment_mate_pair<int_type> >& alis,
 		const fasta_read<int_type>& read_1,
 		const fasta_read<int_type>& read_2,
 		ostream & ofs,
 		const pos_EDS_to_FA_type & transform
 	) {
-		assert(alignments_l.size() == alignments_r.size());
 		// TODO: write failed mates?
-		for (size_t i = 0; i < alignments_l.size(); i++) {
-			assert(alignments_l[i].align_r_c == alignments_r[i].align_r_c);
-			const bool align_r_c = alignments_l[i].align_r_c;
+		for (size_t i = 0; i < alis.size(); i++) {
+			assert(alis[i].l.align_r_c == alis[i].r.align_r_c);
+			const bool align_r_c = alis[i].l.align_r_c;
 
-			std::array< const alignment<int_type>*, 2 > alignments{{ &alignments_l[i], &alignments_r[i] }};
+			std::array< const alignment<int_type>*, 2 > alignments{{ &alis[i].l, &alis[i].r }};
 			std::array< const fasta_read<int_type>*, 2 > reads{{ &read_1, &read_2 }};
 			if (align_r_c) {
 				std::swap(alignments[0], alignments[1]);
@@ -746,7 +782,8 @@ namespace read_processor {
 			if (i > 1) flag |= SAM_FLAGS::NOT_PRIMARY;
 
 
-			std::array< uint32_t, 2 > POS, off{{0, 0}};
+			std::array< uint64_t, 2 > POS;
+			std::array< uint32_t, 2 > off{{0, 0}};
 			std::array< std::string, 2 > RNAME;
 			for (size_t i = 0; i < 2; i++)
 			{
@@ -756,12 +793,16 @@ namespace read_processor {
 				else
 					RNAME[i] = "*";
 			}
+
+			const int64_t LEN = alis[i].dist;
 			
 			for (size_t i = 0; i < 2; i++)
 			{
 				const uint32_t MAPQ = std::round(min(50., -10. * std::log10(alignments[i]->map_q)));
-				constexpr std::string_view RNEXT = "*";
-				constexpr uint32_t TLEN = 0;
+				std::string_view RNEXT = (i == 1 and RNAME[0] == RNAME[1]) ? EQ : RNAME[1-i];
+				const int64_t TLEN = (std::make_tuple(POS[i],i) > std::make_tuple(POS[1-i], 1-i))
+					? -LEN
+					: LEN;
 
 				ofs << QNAME << '\t' << flag << '\t' << RNAME[i] << '\t' << POS[i] << '\t' << MAPQ << '\t' << alignments[i]->cigar << '\t' << RNEXT << '\t' << POS[1-i] /* PNEXT */ << '\t' << TLEN << '\t' 
 					<< reads[i]->sequence << '\t'
@@ -771,7 +812,7 @@ namespace read_processor {
 					<<  (off[i]?(" XO:i:" + to_string(off[i])):"") << '\n';
 			}
 		}
-		return alignments_l.size();
+		return alis.size();
 	}
 } // namespace read_processor
 

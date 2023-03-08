@@ -16,13 +16,13 @@ struct vcf_line{
 	std::string	info;
 
 	uint32_t TYPE;
-	static const uint32_t SNP_TYPE = 1; //SNP
-	static const uint32_t SMALL_ALT_TYPE = 2; //SMALL PLAIN VARIANTS
-	static const uint32_t BIG_ALT_TYPE = 4; //BIG PLAIN VARIANTS
-	static const uint32_t CNV_TYPE = 8; //CNV
-	static const uint32_t IN_TYPE = 16; //PLAIN INSERTIONS
-	static const uint32_t DEL_TYPE = 32; //PLAIN DELETIONS
-	static const uint32_t STRUCT_TYPE = 64; // STRUCTURAL OR BIG
+	static constexpr uint32_t SNP_TYPE = 1; //SNP
+	static constexpr uint32_t SMALL_ALT_TYPE = 2; //SMALL PLAIN VARIANTS
+	static constexpr uint32_t BIG_ALT_TYPE = 4; //BIG PLAIN VARIANTS
+	static constexpr uint32_t CNV_TYPE = 8; //CNV
+	static constexpr uint32_t IN_TYPE = 16; //PLAIN INSERTIONS
+	static constexpr uint32_t DEL_TYPE = 32; //PLAIN DELETIONS
+	static constexpr uint32_t STRUCT_TYPE = 64; // STRUCTURAL OR BIG
 
 
 

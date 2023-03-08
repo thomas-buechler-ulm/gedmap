@@ -19,7 +19,7 @@ template<typename T>
 class EDG_rev;
 
 template<typename T, bool reverse>
-struct EDG_view;
+class EDG_view;
 
 template<typename T>
 class ED_Graph {
@@ -54,7 +54,7 @@ private:
 		ref_ind.resize(edg.size());
 		events.emplace_back(
 			static_cast<T>(0),
-			event_payload(std::in_place_index<VAR_CLOSE>, T{0}, T{0}, false));
+			event_payload(std::in_place_index_t<VAR_CLOSE>{}, open_payload { T{0}, T{0}, false }));
 		for (size_t i = 1; i <= edg.size(); i++)
 			switch (edg[i-1]) {
 				case '(':
@@ -66,7 +66,7 @@ private:
 					all_eq = true;
 					events.emplace_back(
 						static_cast<T>(i),
-						event_payload(std::in_place_index<VAR_OPEN>, T{0}, T{0}, false));
+						event_payload(std::in_place_index_t<VAR_OPEN>{}, open_payload { T{0}, T{0}, false }));
 				}
 				break;
 				case ')':
@@ -97,11 +97,13 @@ private:
 	
 					events.emplace_back(
 						static_cast<T>(i),
-						event_payload(std::in_place_index<VAR_CLOSE>,
-							min_dist.first,
-							events[open_i].first,
-							all_eq,
-							static_cast<skip_length_t>(skip)));
+						event_payload(std::in_place_index_t<VAR_CLOSE>{},
+							open_payload {
+								min_dist.first,
+								events[open_i].first,
+								all_eq,
+								static_cast<skip_length_t>(skip)
+							}));
 				}
 				break;
 				case '|':
@@ -114,7 +116,7 @@ private:
 
 					events.emplace_back(
 						static_cast<T>(i),
-						event_payload(std::in_place_index<VAR_SEP>));
+						event_payload(std::in_place_index_t<VAR_SEP>{}));
 				}
 				break;
 			}
@@ -124,7 +126,7 @@ private:
 
 		events.emplace_back(
 			static_cast<T>(edg.size() + 1),
-			event_payload(std::in_place_index<VAR_OPEN>, T{0}, T{0}, false));
+			event_payload(std::in_place_index_t<VAR_OPEN>{}, open_payload { T{0}, T{0}, false }));
 	}
 public:
 	ED_Graph<T>& operator=(ED_Graph<T>&& rhs) = delete; // because sdsl::rank_support doesnt have move-assignment
@@ -163,8 +165,8 @@ public:
 template<typename T, bool reverse = false>
 class EDG_view {
 public:
-	using event_type = ED_Graph<T>::event_type;
-	using open_payload = ED_Graph<T>::open_payload;
+	using event_type = typename ED_Graph<T>::event_type;
+	using open_payload = typename ED_Graph<T>::open_payload;
 private:
 	const event_type* m_events;
 	size_t m_num_events;

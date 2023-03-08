@@ -58,6 +58,7 @@ int main(int argc,  char** argv){
 	tv[tv_MAP].start();
 
 	const uint32_t int_width = std::max( bitsneeded(EDS.size()), static_cast<uint32_t>(2*mini.k) );
+	edsm_align::init_lookuptables();
 
 	// DIFFERENTIATE BETWEEN INTEGER SIZES
 	if (fastq_in_stream2.is_open()) {

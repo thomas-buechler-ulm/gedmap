@@ -1,6 +1,7 @@
 #pragma once
 #include <fstream>
 #include <string>
+#include <memory>
 #include "vcf_line.cpp"
 
 struct fa_stream{
@@ -103,11 +104,11 @@ struct vcf_stream{
 struct stream_to_stream_copy{
 	ifstream* in;
 	ofstream* out;
-	char* buffer;
+	std::unique_ptr<char[]> buffer;
 	uint32_t buffer_size;
 
 	stream_to_stream_copy(ifstream* in, ofstream* out, uint32_t buffer_size):in(in),out(out),buffer_size(buffer_size){
-		buffer = new char [buffer_size];
+		buffer = std::make_unique<char[]>(buffer_size);
 	};
 
 	/**
@@ -120,12 +121,12 @@ struct stream_to_stream_copy{
 	 */
 	void copy(uint64_t count){
 		while(count > buffer_size){
-			in ->read (buffer,buffer_size);
-			out->write(buffer,buffer_size);
+			in ->read (buffer.get(),buffer_size);
+			out->write(buffer.get(),buffer_size);
 			count -= buffer_size;
 		}
-		in->read (buffer,count);
-		out->write(buffer,count);
+		in->read (buffer.get(),count);
+		out->write(buffer.get(),count);
 	};
 
 	/**

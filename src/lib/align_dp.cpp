@@ -48,12 +48,7 @@ constexpr float wrong_base_prob(const char& c) {
 }
 
 template<typename D>
-constexpr auto gap_start_cost_lookup = [] {
-	std::array<D, max_qual + 1 - min_qual> res;
-	for (uint8_t i = min_qual; i <= max_qual; i++)
-		res[i - min_qual] = static_cast<D>(1 + 5 * (1.f - wrong_base_prob(i)));
-	return res;
-}();
+std::array<D, max_qual + 1 - min_qual> gap_start_cost_lookup;
 template<typename D>
 inline constexpr D read_gap_start_cost(const char& b) {
 	if (variable_gap_costs)
@@ -67,12 +62,28 @@ constexpr D read_gap_continue_cost(const char&) {
 }
 
 template<typename D>
-constexpr auto mismatch_cost_lookup = [] {
-	std::array<D, max_qual + 1 - min_qual> res;
+std::array<D, max_qual + 1 - min_qual> mismatch_cost_lookup;
+
+template<typename D>
+void m_init_lookuptables() {
+	// mismatch cost
 	for (uint8_t i = min_qual; i <= max_qual; i++)
-		res[i - min_qual] = static_cast<D>(min_mismatch_cost + (max_mismatch_cost - min_mismatch_cost) * (1.f - wrong_base_prob(i)));
-	return res;
-}();
+		mismatch_cost_lookup<D>[i - min_qual] = static_cast<D>(
+				min_mismatch_cost + (max_mismatch_cost - min_mismatch_cost) * (1.f - wrong_base_prob(i))
+			);
+	// gap start cost
+	for (uint8_t i = min_qual; i <= max_qual; i++)
+		gap_start_cost_lookup<D>[i - min_qual] = static_cast<D>(
+				1 + 5 * (1.f - wrong_base_prob(i))
+			);
+}
+void init_lookuptables() {
+	m_init_lookuptables<uint8_t>();
+	m_init_lookuptables<uint16_t>();
+	m_init_lookuptables<uint32_t>();
+	m_init_lookuptables<uint64_t>();
+}
+
 template<typename D, bool match>
 constexpr D mismatch_cost(const char& b) {
 	//return match ? 0 : 4;
@@ -305,6 +316,158 @@ public:
 		return res.dist;
 	}
 };
+
+template<
+	typename D, // index type for error count
+	typename PC, // iterator type for eds
+	typename RP, // iterator type for read
+	typename QP, // iterator type for quality
+	typename JI> // jump index
+void align_no_indel(const JI& jump_index,
+		PC j, const PC j_end, const RP& read_b, const QP& qual,
+		const size_t& read_size,
+		std::vector<std::pair<uint32_t, D>> read_pos, // (pos, cost)
+		D& res, PC& res_pos
+) {
+	assert(!read_pos.empty());
+	std::vector<std::pair<uint32_t, D>> var_start, var_acc;
+
+	for ( ; res > 0 && j != j_end; ++j) {
+		const auto skip_to_var_end = [&] {
+			// go to next ')'
+			for (PC nx; (nx = std::next(j)) != j_end && *nx != ')'; )
+				j = nx;
+		};
+		const auto skip_to_next_var = [&] {
+			// go to next '|' or ')'
+			for (PC nx; (nx = std::next(j)) != j_end && *nx != '|' && *nx != ')'; )
+				j = nx;
+		};
+
+		const auto prune = [&res](std::vector<std::pair<uint32_t, D>>& p) {
+			erase_if(p, [&res] (const auto& x) { return x.second >= res; });
+		};
+
+		const auto ed_c = *j;
+		switch (ed_c) {
+			case '#':
+			{
+				for (auto it : jump_index(j)) {
+					align_no_indel<D, PC, RP, QP, JI>(
+						jump_index,
+						it, j_end, read_b, qual,
+						read_size,
+						read_pos,
+						res, res_pos);
+					if (res == 0) return; // optimal solution found
+					prune(read_pos);
+					if (read_pos.empty()) return;
+				}
+				return;
+			}
+			case '(':
+			{
+				assert(var_start.empty());
+				assert(!read_pos.empty());
+				var_start = read_pos;
+				break;
+			}
+			case ')':
+			{
+				if (var_start.empty()) {
+					// did not open variant
+					//  -> just continue
+					continue;
+				}
+
+				// terminate variant ending here
+				var_acc.insert(var_acc.end(),
+					std::make_move_iterator(read_pos.begin()),
+					std::make_move_iterator(read_pos.end()));
+				read_pos.clear();
+				if (var_acc.empty()) {
+					// no useful variant
+					return;
+				}
+
+				// merge
+				std::sort(var_acc.begin(), var_acc.end());
+				for (size_t i = 0; i < var_acc.size(); ) {
+					auto[p, opt] = var_acc[i];
+					i++;
+					while (i < var_acc.size() && var_acc[i].first == p) {
+						//opt = std::min(opt, var_acc[i].second);
+						i++;
+					}
+					if (opt < res) // prune
+						read_pos.emplace_back(p, opt);
+				}
+
+				if (read_pos.empty()) return;
+
+				var_acc.clear();
+				var_start.clear();
+
+				break;
+			}
+			case '|':
+			{
+				if (var_start.empty()) {
+					// never opened an alternative -> skip to end
+					skip_to_var_end();
+					if (j != j_end) {
+						j++;
+						assert (j == j_end || *j == ')');
+					} else return;
+					break;
+				}
+
+				// merge
+				var_acc.insert(var_acc.end(),
+					std::make_move_iterator(read_pos.begin()),
+					std::make_move_iterator(read_pos.end()));
+				
+				prune(var_start);
+				if (var_start.empty()) return;
+				read_pos = var_start;
+				break;
+			}
+			default:
+			{
+				// ed_c is not a syntax symbol
+				assert(ed_c == 'N' || ed_c=='A' || ed_c=='C' || ed_c=='G' || ed_c=='T');
+
+				{
+					std::vector<std::pair<uint32_t, D>> new_pos;
+					for (auto[p,d] : read_pos) {
+						assert(d < res);
+						if (!matches(read_b[p], ed_c) && (d += mismatch_cost<D,false>(qual[p])) >= res)
+							continue;
+						if (++p == read_size) {
+							assert(res > d);
+							res = d;
+							prune(new_pos);
+							res_pos = j;
+							if (res == 0) return; // optimal solution found
+						} else
+							new_pos.emplace_back(p, d);
+					}
+					read_pos = std::move(new_pos);
+				}
+				
+				if (read_pos.empty()) {
+					if (var_start.empty()) {
+						// we are not in an alternatve
+						return;
+					} else {
+						// try next alt.
+						skip_to_next_var();
+					}
+				}
+			}
+		}
+	}
+}
 
 struct nil {}; // because we cant have a variable of type void
 
@@ -699,158 +862,6 @@ void align(const JI& jump_index,
 
 				if (lo[0] > hi[0]) {
 					if (var_start[0] == INVALID) {
-						// we are not in an alternatve
-						return;
-					} else {
-						// try next alt.
-						skip_to_next_var();
-					}
-				}
-			}
-		}
-	}
-}
-
-template<
-	typename D, // index type for error count
-	typename PC, // iterator type for eds
-	typename RP, // iterator type for read
-	typename QP, // iterator type for quality
-	typename JI> // jump index
-void align_no_indel(const JI& jump_index,
-		PC j, const PC j_end, const RP& read_b, const QP& qual,
-		const size_t& read_size,
-		std::vector<std::pair<uint32_t, D>> read_pos, // (pos, cost)
-		D& res, PC& res_pos
-) {
-	assert(!read_pos.empty());
-	std::vector<std::pair<uint32_t, D>> var_start, var_acc;
-
-	for ( ; res > 0 && j != j_end; ++j) {
-		const auto skip_to_var_end = [&] {
-			// go to next ')'
-			for (PC nx; (nx = std::next(j)) != j_end && *nx != ')'; )
-				j = nx;
-		};
-		const auto skip_to_next_var = [&] {
-			// go to next '|' or ')'
-			for (PC nx; (nx = std::next(j)) != j_end && *nx != '|' && *nx != ')'; )
-				j = nx;
-		};
-
-		const auto prune = [&res](std::vector<std::pair<uint32_t, D>>& p) {
-			erase_if(p, [&res] (const auto& x) { return x.second >= res; });
-		};
-
-		const auto ed_c = *j;
-		switch (ed_c) {
-			case '#':
-			{
-				for (auto it : jump_index(j)) {
-					align_no_indel<D, PC, RP, QP, JI>(
-						jump_index,
-						it, j_end, read_b, qual,
-						read_size,
-						read_pos,
-						res, res_pos);
-					if (res == 0) return; // optimal solution found
-					prune(read_pos);
-					if (read_pos.empty()) return;
-				}
-				return;
-			}
-			case '(':
-			{
-				assert(var_start.empty());
-				assert(!read_pos.empty());
-				var_start = read_pos;
-				break;
-			}
-			case ')':
-			{
-				if (var_start.empty()) {
-					// did not open variant
-					//  -> just continue
-					continue;
-				}
-
-				// terminate variant ending here
-				var_acc.insert(var_acc.end(),
-					std::make_move_iterator(read_pos.begin()),
-					std::make_move_iterator(read_pos.end()));
-				read_pos.clear();
-				if (var_acc.empty()) {
-					// no useful variant
-					return;
-				}
-
-				// merge
-				std::sort(var_acc.begin(), var_acc.end());
-				for (size_t i = 0; i < var_acc.size(); ) {
-					auto[p, opt] = var_acc[i];
-					i++;
-					while (i < var_acc.size() && var_acc[i].first == p) {
-						//opt = std::min(opt, var_acc[i].second);
-						i++;
-					}
-					if (opt < res) // prune
-						read_pos.emplace_back(p, opt);
-				}
-
-				if (read_pos.empty()) return;
-
-				var_acc.clear();
-				var_start.clear();
-
-				break;
-			}
-			case '|':
-			{
-				if (var_start.empty()) {
-					// never opened an alternative -> skip to end
-					skip_to_var_end();
-					if (j != j_end) {
-						j++;
-						assert (j == j_end || *j == ')');
-					} else return;
-					break;
-				}
-
-				// merge
-				var_acc.insert(var_acc.end(),
-					std::make_move_iterator(read_pos.begin()),
-					std::make_move_iterator(read_pos.end()));
-				
-				prune(var_start);
-				if (var_start.empty()) return;
-				read_pos = var_start;
-				break;
-			}
-			default:
-			{
-				// ed_c is not a syntax symbol
-				assert(ed_c == 'N' || ed_c=='A' || ed_c=='C' || ed_c=='G' || ed_c=='T');
-
-				{
-					std::vector<std::pair<uint32_t, D>> new_pos;
-					for (auto[p,d] : read_pos) {
-						assert(d < res);
-						if (!matches(read_b[p], ed_c) && (d += mismatch_cost<D,false>(qual[p])) >= res)
-							continue;
-						if (++p == read_size) {
-							assert(res > d);
-							res = d;
-							prune(new_pos);
-							res_pos = j;
-							if (res == 0) return; // optimal solution found
-						} else
-							new_pos.emplace_back(p, d);
-					}
-					read_pos = std::move(new_pos);
-				}
-				
-				if (read_pos.empty()) {
-					if (var_start.empty()) {
 						// we are not in an alternatve
 						return;
 					} else {

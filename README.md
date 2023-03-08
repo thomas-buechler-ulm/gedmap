@@ -1,7 +1,7 @@
 # Preamble
 
 GED-MAP is a prototype for pangemonic read mapping.
-This software is part of the article *Efficient short read mapping to a pangenome that is represented by a graph of ED strings* by Thomas Büchler, Jannik Ohlbrich and Enno Ohlebusch. (Submitted to Bioinformatics)
+This software is part of the article *Efficient short read mapping to a pangenome that is represented by a graph of ED strings* by Thomas Büchler, Jannik Olbrich and Enno Ohlebusch. (Submitted to Bioinformatics)
 
 # Requirements
 

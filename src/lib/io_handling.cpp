@@ -561,6 +561,8 @@ void handle_input(int argc,  char**& argv, gedmap_mini::minimizer_index & eoc, s
 			|| SPOT_HITS.size() != MAX_ALIGNS_T.size())
 			throw invalid_argument("conficting params: -mc -d -wh -mat -mac (none equal list size)");
 
+		DOUBT_DIST = std::min(DOUBT_DIST, *std::min_element(MAX_DIST.begin(), MAX_DIST.end()));
+
 		if(fname_sam.size() == 0)
 			fname_sam = fname_fastq + "." +  FEX_SAM;
 		fastq_s.open(fname_fastq);

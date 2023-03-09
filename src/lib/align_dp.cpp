@@ -21,17 +21,25 @@ namespace edsm_align {
 
 constexpr bool try_no_gap_first = true;
 
-constexpr uint8_t gap_continue_cost = 1;
-constexpr uint8_t gap_start_cost = 6;
-constexpr uint32_t max_mismatch_cost = 4;
-constexpr uint32_t min_mismatch_cost = 0;
-constexpr bool variable_gap_costs = false;
+struct align_costs_t {
+	uint8_t gap_start_cost = 6;
+	uint8_t gap_continue_cost = 1;
+	uint32_t min_mismatch_cost = 0;
+	uint32_t max_mismatch_cost = 4;
+	std::string to_string() const {
+		return std::to_string(gap_start_cost) + ','
+			+ std::to_string(gap_continue_cost) + ','
+			+ std::to_string(min_mismatch_cost) + ','
+			+ std::to_string(max_mismatch_cost);
+	}
+};
+align_costs_t align_costs;
+constexpr uint8_t min_qual = 0x21, max_qual = 0x7e;
 
 constexpr bool matches(char c, char e) {
 	return e == 'N' || e == c || c == 'N';
 }
 
-constexpr uint8_t min_qual = 0x21, max_qual = 0x7e;
 // compute the probability that the base is wrong using the
 // Phread quality score
 // c is the quality from the FASTQ file: 0x21 (lowest quality) to 0x7e (highest quality)
@@ -48,20 +56,6 @@ constexpr float wrong_base_prob(const char& c) {
 }
 
 template<typename D>
-std::array<D, max_qual + 1 - min_qual> gap_start_cost_lookup;
-template<typename D>
-inline constexpr D read_gap_start_cost(const char& b) {
-	if (variable_gap_costs)
-		return gap_start_cost_lookup<D>[b - min_qual];
-	else
-		return 6;
-}
-template<typename D>
-constexpr D read_gap_continue_cost(const char&) {
-	return 1;
-}
-
-template<typename D>
 std::array<D, max_qual + 1 - min_qual> mismatch_cost_lookup;
 
 template<typename D>
@@ -69,12 +63,7 @@ void m_init_lookuptables() {
 	// mismatch cost
 	for (uint8_t i = min_qual; i <= max_qual; i++)
 		mismatch_cost_lookup<D>[i - min_qual] = static_cast<D>(
-				min_mismatch_cost + (max_mismatch_cost - min_mismatch_cost) * (1.f - wrong_base_prob(i))
-			);
-	// gap start cost
-	for (uint8_t i = min_qual; i <= max_qual; i++)
-		gap_start_cost_lookup<D>[i - min_qual] = static_cast<D>(
-				1 + 5 * (1.f - wrong_base_prob(i))
+				align_costs.min_mismatch_cost + (align_costs.max_mismatch_cost - align_costs.min_mismatch_cost) * (1.f - wrong_base_prob(i))
 			);
 }
 void init_lookuptables() {
@@ -86,8 +75,6 @@ void init_lookuptables() {
 
 template<typename D, bool match>
 constexpr D mismatch_cost(const char& b) {
-	//return match ? 0 : 4;
-	//return match ? 0 : static_cast<D>(4 * (1.f - wrong_base_prob(b)));
 	return match ? 0 : mismatch_cost_lookup<D>[b - min_qual];
 }
 template<typename D>
@@ -220,24 +207,23 @@ public:
 		}
 		return c_ix;
 	}
-	template<typename It>
-	Table_(I lo, I hi, It qual) {
+	Table_(I lo, I hi) {
 		m_data.reserve(get_byte_size(1000)); // TODO: make input-dependant?
 		const auto c_ix = add_col_(lo, hi);
 		get_(c_ix, 0) = 0;
 		if (lo == hi) return;
-		D cost = read_gap_start_cost<D>(qual[1]);
+		D cost = align_costs.gap_start_cost;
 		if constexpr (traceback)
 		{
 			get_data(0)[1] = Entry { .dist = cost, .op = 'I', .col = 0, .row = 0 };
 			for (I i = 2; i <= hi - lo; i++)
-				get_data(0)[i] = Entry { .dist = cost += read_gap_continue_cost<D>(qual[i]), .op = 'I', .col = 0, .row = i - 1 };
+				get_data(0)[i] = Entry { .dist = cost += align_costs.gap_continue_cost, .op = 'I', .col = 0, .row = i - 1 };
 		}
 		else
 		{
 			get_(c_ix, 1) = cost;
 			for (I i = 2; i <= hi - lo; i++)
-				get_(c_ix, i) = cost += read_gap_continue_cost<D>(qual[i]);
+				get_(c_ix, i) = cost += align_costs.gap_continue_cost;
 		}
 	}
 
@@ -269,8 +255,7 @@ template<typename D, typename I, bool traceback>
 struct Table;
 template<typename D, typename I>
 struct Table<D, I, false> : public Table_<D, I, false> {
-	template<typename It>
-	Table(I lo, I hi, It read) : Table_<D, I, false>(lo, hi, read) {}
+	Table(I lo, I hi) : Table_<D, I, false>(lo, hi) {}
 };
 template<typename D, typename I>
 struct Table<D, I, true> : public Table_<D, I, true> {
@@ -284,8 +269,7 @@ public:
 	using typename Base::EType;
 	using Base::s_size_size;
 	using Base::s_data_size;
-	template<typename It>
-	Table(I lo, I hi, It qual) : Base(lo, hi, qual) { }
+	Table(I lo, I hi) : Base(lo, hi) { }
 
 	inline const EType& get_pred(const col_id& col, const I& row) const {
 		return reinterpret_cast<const EType*>(m_data.data() + col + s_size_size())[row - get_lo(col)];
@@ -536,21 +520,14 @@ R align(const JI& jump_index, const PC& j, const PC& j_end, const RP& read_b, co
 	row_id lo = 0, hi;
 	{ // determine hi
 		//hi = std::min(read_size - 1, (size_t) max_err);
-		if (max_err < read_gap_start_cost<D>(qual[1]))
+		if (max_err < align_costs.gap_start_cost)
 			hi = 0; // we cant have a gap at the start
 		else {
-			if constexpr (variable_gap_costs) {
-				hi = 1;
-				D cost = read_gap_start_cost<D>(qual[1]);
-				for (size_t i = 2; hi+1 < read_size && (cost + read_gap_continue_cost<D>(qual[i])) <= max_err; i++)
-					cost += read_gap_continue_cost<D>(qual[i]), hi++;
-			} else {
-				hi = 1 + (max_err - read_gap_start_cost<D>(*qual)) / read_gap_continue_cost<D>(qual[0]); // 1+ is for gap start
-				hi = std::min((size_t) hi, read_size - 1);
-			}
+			hi = 1 + (max_err - align_costs.gap_start_cost) / align_costs.gap_continue_cost; // 1+ is for gap start
+			hi = std::min((size_t) hi, read_size - 1);
 		}
 	}
-	Tab columns(lo, hi, qual); // initial column
+	Tab columns(lo, hi); // initial column
 	
 	col_id res_col;
 	if (hi + 1 == read_size) { // initial col. already contains valid solution
@@ -631,7 +608,7 @@ inline void align_dp(
 	Tab& columns,
 	const std::array<col_id, 2>& last_cols,
 	const std::array<col_id, 2>& new_cols,
-	const std::array<row_id, 2>& lo, std::array<row_id, 2>& hi, // hi[0] may change when read_gap_start_cost is not constant
+	const std::array<row_id, 2>& lo, std::array<row_id, 2>& hi, // hi[0] may change when align_costs.gap_start_costtant
 	const RP& read_b, const QP& qual, const char& ed_c,
 	const D& res, const size_t& read_size
 ) {
@@ -642,7 +619,7 @@ inline void align_dp(
 
 	for (row_id i = lo[0]; i <= hi[0]; i++) {
 		if (l_lo <= i && i <= l_hi) // start gap, delete ed_c
-			columns.update(new_cols[1], i, columns.get(last_cols[0], i) + gap_start_cost, last_cols[0], i, 'D');
+			columns.update(new_cols[1], i, columns.get(last_cols[0], i) + align_costs.gap_start_cost, last_cols[0], i, 'D');
 		if (lo[1] <= i && i <= hi[1]) // end gap in eds
 			columns.update_noop(new_cols[0], i, new_cols[1], i);
 
@@ -654,13 +631,13 @@ inline void align_dp(
 				last_cols[0], i-1, match ? '=' : 'X');
 		}
 		if (i > lo[0]) {
-			const auto v = read_del[i - lo[0] - 1] = columns.get(new_cols[0], i - 1) + read_gap_start_cost<D>(qual[i]); // start gap in read
+			const auto v = read_del[i - lo[0] - 1] = columns.get(new_cols[0], i - 1) + align_costs.gap_start_cost; // start gap in read
 			if (v < res)
 				max_hi = std::max(max_hi, i + (res - v - 1));
 		}
 	}
 	if (const auto i = hi[0] + 1; i < read_size) {
-		const auto v = read_del[i - lo[0] - 1] = columns.get(new_cols[0], i - 1) + read_gap_start_cost<D>(qual[i]);
+		const auto v = read_del[i - lo[0] - 1] = columns.get(new_cols[0], i - 1) + align_costs.gap_start_cost;
 		if (v < res)
 			max_hi = std::max(max_hi, i + (res - v - 1));
 	}
@@ -672,12 +649,12 @@ inline void align_dp(
 	for (row_id i = lo[0] + 1; i <= std::min(hi[0]+1, max_hi); i++) {
 		columns.update(read_delete_col, i, read_del[i - (lo[0] + 1)], new_cols[0], i - 1, 'I'); // start gap in read
 		if (i > lo[0] + 1)
-			columns.update(read_delete_col, i, columns.get(read_delete_col, i - 1) + read_gap_continue_cost<D>(qual[i]), read_delete_col, i - 1, 'I'); // continue gap in read
+			columns.update(read_delete_col, i, columns.get(read_delete_col, i - 1) + align_costs.gap_continue_cost, read_delete_col, i - 1, 'I'); // continue gap in read
 		columns.update_noop(new_cols[0], i, read_delete_col, i);
 	}
 	if (max_hi > hi[0]) {
 		for (row_id i = std::max(hi[0], lo[0]+1) + 1; i <= max_hi; i++) {
-			columns.update(read_delete_col, i, columns.get(read_delete_col, i - 1) + read_gap_continue_cost<D>(qual[i]), read_delete_col, i - 1, 'I');
+			columns.update(read_delete_col, i, columns.get(read_delete_col, i - 1) + align_costs.gap_continue_cost, read_delete_col, i - 1, 'I');
 			columns.update_noop(new_cols[0], i, read_delete_col, i);
 		}
 
@@ -838,7 +815,7 @@ void align(const JI& jump_index,
 				}();
 
 				for (row_id i = std::max(lo[1], l_lo_gap); i <= std::min(hi[1], l_hi_gap); i++) // continue gap in eds
-					columns.update(new_cols[1], i, columns.get(last_cols[1], i) + gap_continue_cost, last_cols[1], i, 'D');
+					columns.update(new_cols[1], i, columns.get(last_cols[1], i) + align_costs.gap_continue_cost, last_cols[1], i, 'D');
 
 				align_dp<D,RP,QP,Tab>(columns, last_cols, new_cols, lo, hi, read_b, qual, ed_c, res, read_size);
 				

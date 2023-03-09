@@ -187,7 +187,7 @@ void pos_EDS_to_FA_type::load(std::istream& in){
 
 	if(t3.chrom_names.size() != t3.chrom_starts.size() )
 		os << "chrom_names.size() != chrom_starts.size()" << endl;
-	else for(int i = 0; i < t3.chrom_names.size(); i++){
+	else for(size_t i = 0; i < t3.chrom_names.size(); i++){
 		os << endl << t3.chrom_names[i] << " " << t3.chrom_starts[i];
 	}
  	os <<  endl;

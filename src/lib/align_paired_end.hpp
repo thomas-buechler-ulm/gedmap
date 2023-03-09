@@ -5,7 +5,7 @@
 namespace gedmap_align_min {
 
 using pe_event_type = std::tuple<int64_t, uint32_t, std::optional<int64_t>>;
-constexpr int64_t pairing_ali_weigth = 10; // ali. dist is multiplied with pairing_ali_weigth for mapping
+constexpr int64_t pairing_ali_weigth = 50; // ali. dist is multiplied with pairing_ali_weigth for mapping
 
 template< typename int_type, typename MSQ, typename EDGview, typename F, typename GET_TMP_ALIGNMENTS, typename MK_EVENT_POS>
 inline
@@ -19,7 +19,8 @@ try_mate(
 	const std::vector< temp_alignment<int_type> >& tmp_alignments_l, size_t mam,
 	F mk_hotspot,
 	GET_TMP_ALIGNMENTS get_tmp_alignments,
-	MK_EVENT_POS mk_event_pos
+	MK_EVENT_POS mk_event_pos,
+	uint32_t dist_a, uint32_t dist_b
 ) {
 #ifndef NDEBUG
 	const auto events_old = events;
@@ -47,7 +48,7 @@ try_mate(
 		events,
 		edg_view,
 		msq,
-		PE_FRAGMENT_LENGTH);
+		dist_a);
 	paired_end<int64_t, int64_t>([&opt_mate](auto a, auto b, auto val, auto dist) {
 			assert(dist >= 0);
 			if (val < std::get<2>(opt_mate[b]))
@@ -56,7 +57,7 @@ try_mate(
 		events_rev,
 		edg_view,
 		msq,
-		PE_FRAGMENT_LENGTH);
+		dist_b);
 
 	events.resize(events_pre_size), events_rev.resize(events_rev_pre_size);
 	assert(events == events_old);
@@ -73,7 +74,7 @@ try_mate(
 			if (val == std::numeric_limits<float>::infinity()) 
 				continue;
 			auto hotspot = mk_hotspot(r_c, i_r, val);
-			left_mate[r_c].emplace_back(i_l, dist - hotspot.read_pos); // TODO
+			left_mate[r_c].emplace_back(i_l, dist);
 
 			(r_c ? final_hotspots_r_c : final_hotspots)
 				.emplace_back(std::move(hotspot));
@@ -288,7 +289,7 @@ try_pair(
 		read_processor::align_state align_state;
 		align_state.D = align_state.D_r_c = MAX_DIST[align_idx];
 
-		tmp_alignments_l = read_processor::align<int_type>//, true>
+		tmp_alignments_l = read_processor::align<int_type>
 			( hotspots_a, read_a
 			, hotspots_b, read_b
 			, env, align_state
@@ -320,7 +321,8 @@ try_pair(
 					, MAX_ALIGNS_C[align_idx], MAX_ALIGNS_T[align_idx]
 					);
 			},
-			mk_event_pos);
+			mk_event_pos,
+			PE_FRAGMENT_LENGTH - read_a.sequence.size() / 2, PE_FRAGMENT_LENGTH - read_b.sequence.size() / 2);
 		if (not tmp_alignments_r.empty()) break;
 	}
 
@@ -334,7 +336,7 @@ try_pair(
 
 			mates.emplace_back( tmp_alignments_l[src].get_dist() + tmp_alignments_r[i].get_dist(),
 					src, i,
-					dist + (r_c ? read_a_r_c : read_b_r_c).sequence.size() ); // TODO
+					dist + (r_c ? read_a_r_c : read_b_r_c).sequence.size() - tmp_alignments_r[i].read_pos); // TODO
 		}
 		std::sort(mates.begin(), mates.end(), [](const auto& lhs, const auto& rhs) {
 			return std::get<0>(lhs) < std::get<0>(rhs);

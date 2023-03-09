@@ -50,11 +50,12 @@ struct hotspot {
 template<typename int_type>
 struct temp_alignment {
 	constexpr static float compute_sum_base_q(const std::pair<uint32_t,uint32_t>& dist) {
+		const auto& costs = edsm_align::align_costs;
 		return
 			(dist.first + dist.second)
 				* (edsm_align::max_qual - edsm_align::min_qual)
 				/ 10.f // normalising factor
-				/ (edsm_align::max_mismatch_cost - edsm_align::min_mismatch_cost);
+				/ std::max(static_cast<uint32_t>(costs.gap_start_cost), costs.max_mismatch_cost - costs.min_mismatch_cost);
 	}
 	std::pair<uint32_t,uint32_t> dist; // (dist_left, dist_right)
 	float sum_base_q = 0;
@@ -480,43 +481,26 @@ namespace read_processor {
 		const std::vector<temp_alignment<int_type>>& tmp,
 		const size_t max_out
 	) {
-		double sum_sum_base_q = 0;
-		for (const auto& ali : tmp)
-			sum_sum_base_q += exp10(-0.1 * ali.sum_base_q);
-
 		const size_t num_out = std::min(max_out, tmp.size());
+
+		double sum_sum_base_q = 0;
+		{
+			double min_v = 1.0/0.0;
+			for (const auto& ali : tmp) {
+				const double v = exp10(-0.1 * ali.sum_base_q);
+				sum_sum_base_q += v;
+				min_v = std::min(v, (double)ali.sum_base_q);
+			}
+			if (num_out == 1 and min_v > 0)
+				sum_sum_base_q += 0.1;
+		}
+
 		std::vector<alignment<int_type>> res(num_out);
 		for (size_t i = 0; i < num_out; i++) {
 			auto cigar = tmp[i].reverse_compl
 					? align_dp<true, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), tmp[i].eds_pos, read_r_c.sequence, read_r_c.qual, tmp[i].read_pos, tmp[i].dist)
 					: align_dp<true, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), tmp[i].eds_pos,     read.sequence,     read.qual, tmp[i].read_pos, tmp[i].dist);
 			res[i] = alignment<int_type>(std::move(cigar), tmp[i].get_dist(), tmp[i].ali_start_eds, tmp[i].reverse_compl, 1.0 - exp10(-0.1 * tmp[i].sum_base_q) / sum_sum_base_q);
-		}
-		return res;
-	}
-	// finalizes the first max_out alignments
-	template<typename int_type, typename Environ>
-	std::vector<alignment<int_type>>
-	finalize_alignments(
-		const fasta_read<int_type>& read,
-		const fasta_read<int_type>& read_r_c,
-		const Environ& env,
-		const std::vector<temp_alignment<int_type>>& tmp,
-		const size_t max_out,
-		const std::vector<temp_alignment<int_type>>& tmp_other
-	) {
-		assert(tmp.size() == tmp_other.size());
-		double sum_sum_base_q = 0;
-		for (size_t i = 0; i < tmp.size(); i++)
-			sum_sum_base_q += exp10(-0.1 * (tmp[i].sum_base_q + tmp_other[i].sum_base_q));
-
-		const size_t num_out = std::min(max_out, tmp.size());
-		std::vector<alignment<int_type>> res(num_out);
-		for (size_t i = 0; i < num_out; i++) {
-			auto cigar = tmp[i].reverse_compl
-					? align_dp<true, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), tmp[i].eds_pos, read_r_c.sequence, read_r_c.qual, tmp[i].read_pos, tmp[i].dist)
-					: align_dp<true, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), tmp[i].eds_pos,     read.sequence,     read.qual, tmp[i].read_pos, tmp[i].dist);
-			res[i] = alignment<int_type>(std::move(cigar), tmp[i].get_dist(), tmp[i].ali_start_eds, tmp[i].reverse_compl, 1.0 - exp10(-0.1 * (tmp[i].sum_base_q + tmp_other[i].sum_base_q)) / sum_sum_base_q);
 		}
 		return res;
 	}
@@ -533,8 +517,18 @@ namespace read_processor {
 		F1 get_l, F2 get_r, F3 get_dist
 	) {
 		double sum_sum_base_q = 0;
-		for (size_t i = 0; i < num; i++)
-			sum_sum_base_q += exp10(-0.1 * (get_l(i).sum_base_q + get_r(i).sum_base_q));
+		{
+			double min_v = 1.0/0.0;
+			for (size_t i = 0; i < num; i++) {
+				const double v = get_l(i).sum_base_q + get_r(i).sum_base_q;
+				sum_sum_base_q += exp10(-0.1 * v);
+				min_v = std::min(min_v, v);
+			}
+
+			std::cerr << "min_v = " << min_v << endl;
+			if (num == 1 and min_v > 0)
+				sum_sum_base_q += 0.1;
+		}
 
 		const size_t num_out = std::min(max_out, num);
 		std::vector<alignment_mate_pair<int_type>> res(num_out);
@@ -766,12 +760,7 @@ namespace read_processor {
 
 			std::array< const alignment<int_type>*, 2 > alignments{{ &alis[i].l, &alis[i].r }};
 			std::array< const fasta_read<int_type>*, 2 > reads{{ &read_1, &read_2 }};
-			if (align_r_c) {
-				std::swap(alignments[0], alignments[1]);
-				std::swap(reads[0], reads[1]);
-				for (size_t i = 0; i < 2; i++)
-					reads[i] = &reads[i]->get_rev_compl();
-			}
+			reads[align_r_c] = &reads[align_r_c]->get_rev_compl();
 			std::string_view QNAME = std::string_view(reads[0]->id);
 			QNAME.remove_prefix(1); // remove "@"
 			QNAME.remove_suffix(2); // remove "/1" (or "/2")

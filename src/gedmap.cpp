@@ -18,6 +18,7 @@
 #include <sdsl/rank_support_v5.hpp>
 
 //GEDMAP HEADERS
+#include "lib/align_dp.cpp"
 #include "default_values.hpp"
 #include "lib/include.hpp"
 

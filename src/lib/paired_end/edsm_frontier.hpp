@@ -13,7 +13,7 @@
 // f is called with (query payload, payload of min, value)
 template<typename T, typename R, typename Payload, typename F, typename EDG, typename SKQ>
 void paired_end(F f, std::vector<std::tuple<T, Payload, std::optional<R>>> ts, EDG g, const SKQ& skq, const T& dist) {
-	const R max_err = dist * 5 + 1;
+	const R max_err = dist * 5 + 100;
 
 	//measure("sorting", [&] {
 	std::sort(ts.begin(), ts.end(), [] (const auto& lhs, const auto& rhs) {

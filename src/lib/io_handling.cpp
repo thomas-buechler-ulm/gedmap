@@ -422,28 +422,29 @@ void print_help(){
 	using namespace gedmap_align;
 	vector<string> args { "filename of GEDS", "filename of FASTQ" , "filename of MINI"};
 	vector<string> params {
-	"-o            , fname, output will be stored in file fname (DEFAULT = [2]."+FEX_SAM+")",
-	"-mp           , filename of FASTQ containing the mates (optional, presence indicates paired-end mode)",
-	"-fragment-mean, mean length of fragment in paired-end mode (ignored if -mp is not present, DEFAULT=" + std::to_string(PE_FRAGMENT_LENGTH) + ")",
-	"-fallback     , fallback for paired-end mapping (ignored if -mp is not present)",
-	"-fmat         , maximum number of alignments tried for fallback (ignored if -mp and -fallback are not present, DEFAULT=" + std::to_string(MAX_ALIGNS_T_FALLBACK_DEFAULT) + ")",
-	"-mam x        , max number of alignments used for pairing (DEFAULT x="	+to_string(MAX_ALIGNS_M_DEFAULT)+")",
-	"-2fa          , .2fa-file , if given this is used to transform GEDS-positions to FA positions",
-	"-a fname      , file name of the adijacency file",
-	"-rc           , reversed complement of pattern will be searched, too",
-	"-oa           , only aligned reads will be reported",
-	//"-nc           , don't check for collinearity, when rankin seeds",
-	"-io           , output reads in the same order as in the input (may be a bit slower and with higher memory)",
-	"-mc x         , minimizer count, x minimizers will be looked up per read(DEFAULT x="+to_string(FRAGMENT_COUNT_DEFAULT)+")",
-	"-ws x         , window size of hotspot (DEFAULT x="+to_string(SPOT_SIZE_DEFAULT)+")",
-	"-wh x         , minimum minimizer score (DEFAULT x="+to_string(SPOT_HITS_DEFAULT)+")",
-	"-dd x         , doubt distance, when best alignment has a distance x or greater, go to next round (DEFAULT x="+to_string(DOUBT_DIST_DEFAULT)+")",
-	"-mac x        , max number of alignments completely calculated (DEFAULT x="	+to_string(MAX_ALIGNS_C_DEFAULT)+")",
-	"-mat x        , max number of alignments tried to calculate (DEFAULT x="	+to_string(MAX_ALIGNS_T_DEFAULT)+")",
-	"-mao x        , max number of alignments in output (DEFAULT x="		+to_string(MAX_ALIGNS_O_DEFAULT)+")",
-	"-d x          , max distance in alignment (DEFAULT x="			+to_string(MAX_DIST_DEFAULT)+")",
-	"-tmp tmp_dir  , to change DEFAULT tmp direcoty from /tmp to tmp_dir",
-	"-tc x         , maximum number of threads used per index copy (DEFAULT uses as many as avaiable)"
+	"-o               , fname, output will be stored in file fname (DEFAULT = [2]."+FEX_SAM+")",
+	"-mp              , filename of FASTQ containing the mates (optional, presence indicates paired-end mode)",
+	"-fragment-mean   , mean length of fragment in paired-end mode (ignored if -mp is not present, DEFAULT=" + std::to_string(PE_FRAGMENT_LENGTH) + ")",
+	"-fallback        , fallback for paired-end mapping (ignored if -mp is not present)",
+	"-fmat            , maximum number of alignments tried for fallback (ignored if -mp and -fallback are not present, DEFAULT=" + std::to_string(MAX_ALIGNS_T_FALLBACK_DEFAULT) + ")",
+	"-mam x           , max number of alignments used for pairing (DEFAULT x="	+to_string(MAX_ALIGNS_M_DEFAULT)+")",
+	"-2fa             , .2fa-file , if given this is used to transform GEDS-positions to FA positions",
+	"-a fname         , file name of the adijacency file",
+	"-rc              , reversed complement of pattern will be searched, too",
+	"-oa              , only aligned reads will be reported",
+	//"-nc              , don't check for collinearity, when rankin seeds",
+	"-io              , output reads in the same order as in the input (may be a bit slower and with higher memory)",
+	"-mc x            , minimizer count, x minimizers will be looked up per read(DEFAULT x="+to_string(FRAGMENT_COUNT_DEFAULT)+")",
+	"-ws x            , window size of hotspot (DEFAULT x="+to_string(SPOT_SIZE_DEFAULT)+")",
+	"-wh x            , minimum minimizer score (DEFAULT x="+to_string(SPOT_HITS_DEFAULT)+")",
+	"-dd x            , doubt distance, when best alignment has a distance x or greater, go to next round (DEFAULT x="+to_string(DOUBT_DIST_DEFAULT)+")",
+	"-mac x           , max number of alignments completely calculated (DEFAULT x="	+to_string(MAX_ALIGNS_C_DEFAULT)+")",
+	"-mat x           , max number of alignments tried to calculate (DEFAULT x="	+to_string(MAX_ALIGNS_T_DEFAULT)+")",
+	"-mao x           , max number of alignments in output (DEFAULT x="		+to_string(MAX_ALIGNS_O_DEFAULT)+")",
+	"-d x             , max distance in alignment (DEFAULT x="			+to_string(MAX_DIST_DEFAULT)+")",
+	"-tmp tmp_dir     , to change DEFAULT tmp direcoty from /tmp to tmp_dir",
+	"-tc x            , maximum number of threads used per index copy (DEFAULT uses as many as avaiable)",
+	"-weights s,c,l,h , weights used for alignment-DP: s,c,l,h are costs for gap start, gap continue, minimum mismatch cost and maximum mismatch cost, respectively (DEFAULT " + edsm_align::align_costs.to_string() + ")"
 	};
 
 	cout << "'gedmap align' algings reads to the given GEDS and MINIMIZER INDEX" << endl;
@@ -545,6 +546,23 @@ void handle_input(int argc,  char**& argv, gedmap_mini::minimizer_index & eoc, s
 				THREAD_COUNT = stoi(value);
 			else if("-a" == param)
 				input_error |= sdsl_load(value, ADJ);
+			else if("-weights" == param)
+			{
+				auto ws = parse_uint32_vector(value);
+				if (ws.size() != 4)
+					throw invalid_argument("-weights expects exactly 4 comma-separated values");
+				if (*std::max_element(ws.begin(), ws.end()) > 64)
+					throw invalid_argument("all weights given by -weights must be at most 64");
+				auto& costs = edsm_align::align_costs;
+				costs.gap_start_cost = ws[0];
+				costs.gap_continue_cost = ws[1];
+				costs.min_mismatch_cost = ws[2];
+				costs.max_mismatch_cost = ws[3];
+				if (costs.gap_start_cost == 0 or costs.gap_continue_cost == 0)
+					throw invalid_argument("gap start and continue costs must be greater than 0");
+				if (costs.min_mismatch_cost > costs.max_mismatch_cost)
+					throw invalid_argument("minimum mismatch cost must not be larger than maximum mismatch cost");
+			}
 			else
 				throw invalid_argument("in gedmap align: " + unknown_argument(param));
 		}

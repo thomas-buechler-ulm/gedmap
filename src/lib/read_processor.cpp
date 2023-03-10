@@ -525,7 +525,6 @@ namespace read_processor {
 				min_v = std::min(min_v, v);
 			}
 
-			std::cerr << "min_v = " << min_v << endl;
 			if (num == 1 and min_v > 0)
 				sum_sum_base_q += 0.1;
 		}

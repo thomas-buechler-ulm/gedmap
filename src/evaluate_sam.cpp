@@ -41,11 +41,12 @@ int main(int argc, char *argv[]){
 	uint32_t NOT_PRIM	= 256;
 	uint32_t SUPPLEMENTARY	= 2048;
 
-	uint32_t CORRECT_POSITION_TRESHOLD = 25;
+	uint32_t CORRECT_POSITION_TRESHOLD = 600;
 
 	//COUNTERS
 	uint32_t count_all 				= 0;
 	uint32_t count_mapped 				= 0;
+	uint32_t count_correct_pos	= 0;
 	uint32_t count_correct_pos_better_eq	= 0;
 	uint32_t count_correct_pos_worse		= 0;
 	
@@ -79,6 +80,7 @@ int main(int argc, char *argv[]){
 		vector<string> query_fields = string_split(fields[0],'_');
 		
 		uint64_t mapping_pos = stol( fields[3] );
+		uint64_t mapping_pos_mate = fields[7]=="*"?0:stol( fields[7] );
 		uint32_t mapping_dist = 9999;
 		bool     mapping_dist_known = false;		
 		//find dist
@@ -91,17 +93,17 @@ int main(int argc, char *argv[]){
 				NM_count++;
 				break;
 			}		
+
+		bool correct_pos;
+		if(query_fields.size() > 3){
+			uint64_t sample_pos = stol( query_fields [3]);
+			correct_pos = abs(sample_pos,mapping_pos) < CORRECT_POSITION_TRESHOLD;
+			if(!correct_pos && mapping_pos_mate) correct_pos = abs(mapping_pos_mate,sample_pos) < CORRECT_POSITION_TRESHOLD;
+			if(correct_pos) count_correct_pos++;
+		}
 		
 		if(query_fields.size() > 5){
-			uint64_t sample_pos = stol( query_fields [3]);
 			uint32_t sample_dist =  stoi( query_fields [5]);
-			
-
-
-
-			
-			bool correct_pos = abs(sample_pos,mapping_pos) < CORRECT_POSITION_TRESHOLD;
-			
 			
 			if(correct_pos){
 				if(mapping_dist_known && mapping_dist <= sample_dist)
@@ -143,7 +145,7 @@ int main(int argc, char *argv[]){
 	<< tab << count_all 
 	<< tab << count_mapped 
 	<< tab << count_unmap 
-	<< tab << count_correct_pos_better_eq + count_correct_pos_worse
+	<< tab << count_correct_pos
 	<< tab << count_correct_pos_better_eq 
 	<< tab << count_correct_pos_worse 
 	<< tab << count_other_pos_better +  count_other_pos_equal + count_other_pos_worse

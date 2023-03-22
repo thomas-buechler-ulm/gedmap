@@ -226,7 +226,7 @@ void paralell_processor( gedmap_mini::minimizer_index & mini, const std::string 
 				results += res;
 				if (res) mapped++;
 				count++;
-				if (!(count%1000))
+				if (!(count%10000))
 					gedmap_io::flush_row("Searched reads", to_string(count));
 				chances_count += my_searches_chances;
 			}

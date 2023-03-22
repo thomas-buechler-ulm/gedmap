@@ -31,7 +31,7 @@ struct adjacency{
 
 	using result_type = it_range<std::vector<uint64_t>::const_iterator>;
 	result_type operator()(uint64_t node, bool direction = FORWARD) const {
-		if(!initialised) throw runtime_error("adjacency: not initialised");
+		//if(!initialised) throw runtime_error("adjacency: not initialised."); RETURN EMPTY VECTOR WHEN ADJ NOT GIVEN
 		if(direction == FORWARD)
 			return get_tagets(node,forward_edges,forward_targets);
 		else

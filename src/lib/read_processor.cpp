@@ -433,8 +433,9 @@ namespace read_processor {
 				const auto [dist, ali_start_eds] = align_r_c
 					? align_dp<false, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), eds_pos, read_r_c.sequence, read_r_c.qual, read_pos, m_D)
 					: align_dp<false, dist_type, uint32_t>(eget<std::string>(env), eget<adjacency>(env), eds_pos,     read.sequence,     read.qual, read_pos, m_D);
-	
-				if (const uint32_t total_dist = dist.first + (uint32_t)dist.second; total_dist <= m_D) {
+
+					const uint32_t total_dist = dist.first + (uint32_t)dist.second;
+				if (total_dist <= m_D) {
 					// alignment found
 					aligns++;
 					tmp_alignments.emplace_back(dist, eds_pos, read_pos, ali_start_eds, align_r_c, align_r_c ? state.i_r_c : state.i);
@@ -448,12 +449,6 @@ namespace read_processor {
 				(align_r_c ? state.i_r_c : state.i)++;
 			}
 		}
-
-		// TODO: we actually only need the best report_count
-		const auto cmp = [](const temp_alignment<int_type>& lhs, const temp_alignment<int_type>& rhs) { return lhs.get_dist() < rhs.get_dist(); };
-
-	 	sort(tmp_alignments.begin(), tmp_alignments.end(), cmp);
-
 		return tmp_alignments;
 	}
 	template < typename int_type, typename Environ >
@@ -575,12 +570,17 @@ namespace read_processor {
 					res.emplace_back(std::move(tmp_alignments[kv.second]));
 			tmp_alignments = std::move(res);
 		}
+
+		const auto cmp = [](const temp_alignment<int_type>& lhs, const temp_alignment<int_type>& rhs) { return lhs.get_dist() < rhs.get_dist(); };
+		sort(tmp_alignments.begin(), tmp_alignments.end(), cmp);
+
 		return finalize_alignments(
 			read, read_r_c,
 			env,
 			std::move(tmp_alignments),
 			max_a_o);
 	}
+
 	template<typename int_type, typename Environ>
 	std::vector<alignment<int_type>>
 	start_aligner(
@@ -634,6 +634,8 @@ namespace read_processor {
 				return lhs.dist < rhs.dist;
 			});
 		alignments = std::move(tmp);
+
+
 	}
 	
 	constexpr uint32_t get_edit_distance(std::string_view cigar) {

@@ -43,11 +43,11 @@ namespace gedmap_index_min{
 //ALIGN
 //SETTINGS with Default values
 namespace gedmap_align_min{
-	const std::vector<uint32_t> FRAGMENT_COUNT_DEFAULT{100};
+	const std::vector<uint32_t> FRAGMENT_COUNT_DEFAULT{80};
 	const uint32_t SPOT_SIZE_DEFAULT		= 500;
 	const std::vector<uint32_t> SPOT_HITS_DEFAULT{1};
-	const uint32_t DOUBT_DIST_DEFAULT		= 3;
-	const std::vector<uint32_t> MAX_DIST_DEFAULT{50};
+	const uint32_t DOUBT_DIST_DEFAULT		= 7;
+	const std::vector<uint32_t> MAX_DIST_DEFAULT{30};
 	const std::vector<uint32_t> MAX_ALIGNS_C_DEFAULT = {5};
 	const std::vector<uint32_t> MAX_ALIGNS_M_DEFAULT = {1,10};
 	const std::vector<uint32_t> MAX_ALIGNS_T_DEFAULT= {10};
@@ -109,7 +109,6 @@ namespace gedmap_align{
 	const uint32_t DEFAULT_POSPAIR_CAPACITY = 800000;
 }
 
-//############## OTHER STUFF ###################
 // seperates chromosoms in eds
 const char EDS_NODE_BOUNDARY	= '#';
 // seperates positions in EOC

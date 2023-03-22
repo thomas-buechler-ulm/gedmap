@@ -34,7 +34,7 @@ size_t med(vector<uint32_t> & v, int count){
 	return med;
 }
 
-void analyse_kmi(char **argv, gedmap_mini::minimizer_index & mini){		
+void analyse_kmi(char **argv, gedmap_mini::minimizer_index & mini){
 	cout << argv[1] << '\t'
 	     << mini.k << '\t'
 	     << mini.w << '\t'
@@ -69,16 +69,17 @@ vector<string> string_split(string & s, char delim){
 	throw runtime_error ("Strange things in my string_split implementation\n");
 }
 
-pair<uint32_t,uint32_t> count_hints(gedmap_mini::minimizer_index & mini, fasta_read<64,uint64_t>  & read  ){
+pair<uint32_t,uint32_t> count_hints(gedmap_mini::minimizer_index & mini, fasta_read<uint64_t>  & read  ){
 	uint32_t correct = 0;
 	uint32_t all = 0;
 	vector<string> fields = string_split(read.id, '_');
 	uint64_t starting_pos = stol(fields[3]);
-	read.get_fragments(read.sequence.size(), mini);
-	read.get_positions(mini);
-	for(auto pp : read.pos_pairs){
+	//read.get_fragments(read.sequence.size(), mini);
+	auto pos_pairs = read_processor::get_positions(read_processor::get_fragments(read, 100, mini),mini);
+	for(auto pp : pos_pairs){
 		all++;
-		if( (starting_pos - pp.first) > 10 && (pp.first - starting_pos) < 300)
+		uint64_t est_start = pp.eds_pos - pp.read_pos + 1;
+		if( (starting_pos <= est_start) && (est_start - starting_pos) < 100)
 			correct++;
 	}
 	return make_pair(correct,all);
@@ -97,7 +98,7 @@ void analyse_kmi_samples(char** argv, gedmap_mini::minimizer_index & mini){
 
 	while(fq_in.good()){
 		try{
-			fasta_read<64,uint64_t>  read(fq_in);
+			fasta_read<uint64_t>  read(fq_in);
 			uint32_t ch,h;
 			tie(ch,h) = count_hints(mini, read);
 			c_sum += ch;

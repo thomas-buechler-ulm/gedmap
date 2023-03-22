@@ -423,38 +423,39 @@ void print_help(){
 	vector<string> args { "filename of GEDS", "filename of FASTQ" , "filename of MINI"};
 	vector<string> params {
 	"-o               , fname, output will be stored in file fname (DEFAULT = [2]."+FEX_SAM+")",
+	"-2fa             , .2fa-file , if given this is used to transform GEDS-positions to FA positions",
+	"-a fname         , file name of the adijacency file",
+
+	"-rc              , reversed complement of pattern will be searched, too",
+	//"-nc              , don't check for collinearity, when rankin seeds",
+	"-mc x            , minimizer count, x minimizers will be looked up per read(DEFAULT x="+to_string(FRAGMENT_COUNT_DEFAULT)+")",
+	"-ws x            , window size of hotspot (DEFAULT x="+to_string(SPOT_SIZE_DEFAULT)+")",
+	"-wh x            , minimum minimizer score (DEFAULT x="+to_string(SPOT_HITS_DEFAULT)+")",
+	"-d x             , max distance in alignment (DEFAULT x="			+to_string(MAX_DIST_DEFAULT)+")",
+	"-weights s,c,l,h , weights used for alignment-DP: s,c,l,h are costs for gap start, gap continue, minimum mismatch cost and maximum mismatch cost, respectively (DEFAULT " + edsm_align::align_costs.to_string() + ")",
+	"-sd x            , satisfying distance, when best alignment has a distance x or smaller, don't align further reads (DEFAULT x="+to_string(DOUBT_DIST_DEFAULT)+")",
+	"-dd x            , doubt distance, when best alignment has a distance x or greater, go to next round (DEFAULT x="+to_string(DOUBT_DIST_DEFAULT)+")",
+	"-mac x           , max number of alignments completely calculated (DEFAULT x="	+to_string(MAX_ALIGNS_C_DEFAULT)+")",
+	"-mat x           , max number of alignments tried to calculate (DEFAULT x="	+to_string(MAX_ALIGNS_T_DEFAULT)+")",
+	"-mao x           , max number of alignments in output (DEFAULT x="		+to_string(MAX_ALIGNS_O_DEFAULT)+")",
+
+	"-oa              , only aligned reads will be reported",
+	"-io              , output reads in the same order as in the input (may be a bit slower and with higher memory)",
+
+
 	"-mp              , filename of FASTQ containing the mates (optional, presence indicates paired-end mode)",
 	"-fragment-mean   , mean length of fragment in paired-end mode (ignored if -mp is not present, DEFAULT=" + std::to_string(PE_FRAGMENT_LENGTH) + ")",
 	"-fallback        , fallback for paired-end mapping (ignored if -mp is not present)",
 	"-fmat            , maximum number of alignments tried for fallback (ignored if -mp and -fallback are not present, DEFAULT=" + std::to_string(MAX_ALIGNS_T_FALLBACK_DEFAULT) + ")",
 	"-mam x           , max number of alignments used for pairing (DEFAULT x="	+to_string(MAX_ALIGNS_M_DEFAULT)+")",
-	"-2fa             , .2fa-file , if given this is used to transform GEDS-positions to FA positions",
-	"-a fname         , file name of the adijacency file",
-	"-rc              , reversed complement of pattern will be searched, too",
-	"-oa              , only aligned reads will be reported",
-	//"-nc              , don't check for collinearity, when rankin seeds",
-	"-io              , output reads in the same order as in the input (may be a bit slower and with higher memory)",
-	"-mc x            , minimizer count, x minimizers will be looked up per read(DEFAULT x="+to_string(FRAGMENT_COUNT_DEFAULT)+")",
-	"-ws x            , window size of hotspot (DEFAULT x="+to_string(SPOT_SIZE_DEFAULT)+")",
-	"-wh x            , minimum minimizer score (DEFAULT x="+to_string(SPOT_HITS_DEFAULT)+")",
-	"-dd x            , doubt distance, when best alignment has a distance x or greater, go to next round (DEFAULT x="+to_string(DOUBT_DIST_DEFAULT)+")",
-	"-mac x           , max number of alignments completely calculated (DEFAULT x="	+to_string(MAX_ALIGNS_C_DEFAULT)+")",
-	"-mat x           , max number of alignments tried to calculate (DEFAULT x="	+to_string(MAX_ALIGNS_T_DEFAULT)+")",
-	"-mao x           , max number of alignments in output (DEFAULT x="		+to_string(MAX_ALIGNS_O_DEFAULT)+")",
-	"-d x             , max distance in alignment (DEFAULT x="			+to_string(MAX_DIST_DEFAULT)+")",
+
 	"-tmp tmp_dir     , to change DEFAULT tmp direcoty from /tmp to tmp_dir",
-	"-tc x            , maximum number of threads used per index copy (DEFAULT uses as many as avaiable)",
-	"-weights s,c,l,h , weights used for alignment-DP: s,c,l,h are costs for gap start, gap continue, minimum mismatch cost and maximum mismatch cost, respectively (DEFAULT " + edsm_align::align_costs.to_string() + ")"
+	"-tc x            , maximum number of threads used per index copy (DEFAULT uses as many as avaiable)"
 	};
 
 	cout << "'gedmap align' algings reads to the given GEDS and MINIMIZER INDEX" << endl;
 	dotline();
 	cout << expected_arguments(args, params);
-	dotline();
-	cout << "The program can run multiple rounds with different parameters per read." << endl;
-	cout << "Therefore, the parametes mc,d,mac,mat can be given as a comma seperated list of equal length." << endl;
-	cout << "If there was no alignment with distance smaller then -dd was calculated in the current round, the program performs the next round." << endl;
-	cout << "F.e.: -d 3,10 means the alignment algorithm allows only 3 errors in the first round and 10 errors in the second round."  << endl;	
 	dotline();
 }
 
@@ -526,7 +527,7 @@ void handle_input(int argc,  char**& argv, gedmap_mini::minimizer_index & eoc, s
 				SPOT_SIZE = stoi(value);
 			else if("-wh" == param)
 				SPOT_HITS = parse_uint32_vector(value);
-			else if("-dd" == param)
+			else if("-sd" == param)
 				DOUBT_DIST = stoi(value);
 			else if("-mac" == param)
 				MAX_ALIGNS_C = parse_uint32_vector(value);

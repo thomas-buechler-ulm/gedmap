@@ -5,6 +5,7 @@
 #include "pos_EDS_to_FA.cpp"
 #include "adjacency.cpp"
 #include "minimizer_builder.cpp"
+#include "align_dp.cpp"
 #include "io_handling.cpp"
 #include "system_timer.cpp"
 //FOR MAPPING

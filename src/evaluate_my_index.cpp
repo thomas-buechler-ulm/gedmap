@@ -91,7 +91,7 @@ void analyse_kmi_samples(char** argv, gedmap_mini::minimizer_index & mini){
 
 	uint32_t read_count = 0;
 	uint32_t c_sum = 0;
-	uint32_t h_sum = 0;
+	uint64_t h_sum = 0;
 
 	ifstream fq_in;
 	fq_in.open(argv[2],ios_base::in);

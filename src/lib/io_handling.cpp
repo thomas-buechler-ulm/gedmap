@@ -280,15 +280,16 @@ void print_call_for_help(string bin_path){
 namespace gedmap_parse{
 using namespace gedmap_io;
 void print_help(){
-	vector<string> args { "filename of FA", "filename of VCF" , "output filename"};
+	vector<string> args { "filename of FA", "filename of VCF"};
 	vector<string> params {
-		"-nosv, do not include structural variants, i.e. copy number variation and other large variation (Then only and EDS is generated)",
-		"-tmp tmp_dir , to set tmp direcoty (DEFAULT tmp_dir="+ TMP_DIR_DEFAULT +")",
-		"-lim l , variants with ref or alt larger than l are handled as structural variants (DEFAULT l="+ to_string(PLAIN_ALT_LIMIT_DEFAULT) +")"};
-
+		"-nosv        , do not include structural variants, i.e. copy number variation and other large variation. (Only an EDS is generated)",
+		"-tmp tmp_dir , to set tmp direcoty (default "+ TMP_DIR_DEFAULT +")",
+		"-lim l       , variants with ref or alt larger than l are handled as structural variants (default "+ to_string(PLAIN_ALT_LIMIT_DEFAULT) +")",
+		"-o           , output prefix for the " + FEX_EDS + ", " + FEX_ADJ+ " and " +FEX_2FA+ " file (default [1])"    };
 		cout << "'gedmap parse' parses a FA file and a VCF file to an EDS graph." << endl;
 		dotline();
 		cout << expected_arguments(args, params);
+		dotline();
 }
 
 
@@ -300,20 +301,18 @@ void print_help(){
 void handle_input(int argc, char**& argv, string& fname_fa, string& fname_vcf, string& fname_eds){
 	try{
 
-		if(argc < 3) throw invalid_argument( "in gedmap parse: " + missing_arguments);
-		if(string(argv[2]) == "-h" || string(argv[2]) == "--help"){
-			print_help();
-			exit(0);
-		}
+		for(int i = 0; i < argc; i++)
+			if(string(argv[i]) == "-h" || string(argv[i]) == "--help"){
+				print_help();
+				exit(0);
+			}
 
-		if(argc < 5) throw invalid_argument( "in gedmap parse: " + missing_arguments);
+		if(argc < 4) throw invalid_argument( "in gedmap parse: " + missing_arguments);
 
 		fname_fa  = argv[2];
 		fname_vcf = argv[3];
-		fname_eds = argv[4];
+		fname_eds = fname_fa;
 
-		if(!ends_with(fname_eds, FEX_EDS))
-			fname_eds += "." + FEX_EDS;
 		bool input_error = false;
 		input_error |= file_access(fname_fa);
 		input_error |= file_access(fname_vcf);
@@ -321,7 +320,7 @@ void handle_input(int argc, char**& argv, string& fname_fa, string& fname_vcf, s
 		if(input_error) throw invalid_argument("in gedmap parse: " + not_loaded);
 
 
-		for(int i = 5; i < argc;){
+		for(int i = 4; i < argc;){
 			string param = argv[i++];
 			if("-nosv" == param){
 				gedmap_parse::INCLUDE_SV = false;
@@ -334,9 +333,13 @@ void handle_input(int argc, char**& argv, string& fname_fa, string& fname_vcf, s
 				TMP_DIR = value;
 			else if("-lim" == param)
 				PLAIN_ALT_LIMIT = stoi(value);
+			else if("-o" == param)
+				fname_eds = value;
 			else
 				throw invalid_argument("in gedmap parse: " + unknown_argument(param));
 		}
+		if(!ends_with(fname_eds, FEX_EDS))
+			fname_eds += "." + FEX_EDS;
 	}
 	catch(exception & e){
 		print_error(e.what());
@@ -351,17 +354,23 @@ using namespace gedmap_io;
 void print_help(){
 	vector<string> args { "filename of GEDS"};
 	vector<string> params {
-		"-a fname,  file name of the adijacency file",
-		"-2fa fname,  file of the 2fa file",
-		"-k k,  kmer/minimizer size k (DEFAULT k="+ to_string(KMER_SIZE_DEFAULT) +")",
-		"-w w,  window size w (DEFAULT w="+ to_string(WINDOW_SIZE_DEFAULT) +")",
-		"-o fname,  file name of minimizer index (DEFAULT fname= geds_fname.min)",
-		"-n n,  maximum number of N in minimizer (DEFAULT n="+ to_string(MAX_N_IN_SEED_DEFAULT) +")",
-		"-tc x , maximum number of threads used (DEFAULT uses as many as avaiable)",
-		"-trim x , removes sets greater than x from index (DEFAULT x="+ to_string(TRIM_DEFAULT) + " (x=0 for no trim))"};
-	cout << "'gedmap index' calculates a minimizer index of a given EDS graph." << endl;
+		"... IO",
+		"-a   fname  , file name of the adijacency file.",
+		"-2fa fname  , file of the 2fa file",
+		"-o fname    , file name of minimizer index (default [1].min)",
+		"... Index parameter",
+		"-k k        , kmer size (default "+ to_string(KMER_SIZE_DEFAULT) +")",
+		"-w w        , window size (default "+ to_string(WINDOW_SIZE_DEFAULT) +")",
+		"-n n        , maximum number of N allowed in a minimizer (default "+ to_string(MAX_N_IN_SEED_DEFAULT) +")",
+		"-trim x     , trims kmer sets greater than x from index (default "+ to_string(TRIM_DEFAULT) + " , 0 for no trim)",
+		"... Control",
+		"-tmp tmp_dir, to set tmp direcoty (default "+ TMP_DIR_DEFAULT +")",
+		"-t x      , maximum number of threads used (default "+ to_string(MAX_THREAD_COUNT)+")"};
+		cout << "'gedmap index' calculates a minimizer index of a given EDS graph." << endl;
+		cout << "If [1] was build with allowing structural variants, its strongly\n recommended to provide the adjacency file (parameter -a). This also sccelerates the indexing process, because nodes can be indexed parallel" << endl;
 	dotline();
 	cout << expected_arguments(args, params);
+	dotline();
 }
 
 /**
@@ -369,12 +378,13 @@ void print_help(){
  */
 void handle_input(int argc, char**& argv, string & eds, string &  fname_min, adjacency & adj, pos_EDS_to_FA_type & p2FA){
 	try{
-		if(argc < 3) throw invalid_argument( "in gedmap index: " + missing_arguments);
-		if(string(argv[2]) == "-h" || string(argv[2]) == "--help"){
-			print_help();
-			exit(0);
-		}
+		for(int i = 0; i < argc; i++)
+			if(string(argv[i]) == "-h" || string(argv[i]) == "--help"){
+				print_help();
+				exit(0);
+			}
 
+		if(argc < 3) throw invalid_argument( "in gedmap index: " + missing_arguments);
 		if(load_string_from_file(argv[2],eds)) throw invalid_argument("in gedmap index: geds" + not_loaded);
 		fname_min = argv[2];
 
@@ -395,10 +405,13 @@ void handle_input(int argc, char**& argv, string & eds, string &  fname_min, adj
 				fname_min = value;
 			else if("-n" == param)
 				MAX_N_IN_SEED = stoi(value);
-			else if("-tc" == param)
-				MAX_THREAD_COUNT = stoi(value);
+			else if("-t" == param)
+				omp_set_num_threads(stoi(value));
+				//MAX_THREAD_COUNT = stoi(value);
 			else if("-trim" == param)
 				TRIM = stoi(value);
+			else if ("-tmp" == param)
+				TMP_DIR = value;
 			else
 				throw invalid_argument("in gedmap index: " + unknown_argument(param));
 		}
@@ -420,40 +433,43 @@ namespace gedmap_align_min{
 using namespace gedmap_io;
 void print_help(){
 	using namespace gedmap_align;
-	vector<string> args { "filename of GEDS", "filename of FASTQ" , "filename of MINI"};
+	vector<string> args { "filename of FASTQ" , "filename of GEDS" , "filename of MINI"};
 	vector<string> params {
-	"-o               , fname, output will be stored in file fname (DEFAULT = [2]."+FEX_SAM+")",
+	"... IO",
 	"-2fa             , .2fa-file , if given this is used to transform GEDS-positions to FA positions",
 	"-a fname         , file name of the adijacency file",
-
-	"-rc              , reversed complement of pattern will be searched, too",
-	//"-nc              , don't check for collinearity, when rankin seeds",
-	"-mc x            , minimizer count, x minimizers will be looked up per read(DEFAULT x="+to_string(FRAGMENT_COUNT_DEFAULT)+")",
-	"-ws x            , window size of hotspot (DEFAULT x="+to_string(SPOT_SIZE_DEFAULT)+")",
-	"-wh x            , minimum minimizer score (DEFAULT x="+to_string(SPOT_HITS_DEFAULT)+")",
-	"-d x             , max distance in alignment (DEFAULT x="			+to_string(MAX_DIST_DEFAULT)+")",
-	"-weights s,c,l,h , weights used for alignment-DP: s,c,l,h are costs for gap start, gap continue, minimum mismatch cost and maximum mismatch cost, respectively (DEFAULT " + edsm_align::align_costs.to_string() + ")",
-	"-sd x            , satisfying distance, when best alignment has a distance x or smaller, don't align further reads (DEFAULT x="+to_string(DOUBT_DIST_DEFAULT)+")",
-	"-dd x            , doubt distance, when best alignment has a distance x or greater, go to next round (DEFAULT x="+to_string(DOUBT_DIST_DEFAULT)+")",
-	"-mac x           , max number of alignments completely calculated (DEFAULT x="	+to_string(MAX_ALIGNS_C_DEFAULT)+")",
-	"-mat x           , max number of alignments tried to calculate (DEFAULT x="	+to_string(MAX_ALIGNS_T_DEFAULT)+")",
-	"-mao x           , max number of alignments in output (DEFAULT x="		+to_string(MAX_ALIGNS_O_DEFAULT)+")",
-
+	"-o               , fname, output will be stored in file fname (default  [2]."+FEX_SAM+")",
 	"-oa              , only aligned reads will be reported",
+	"-mao x           , max number of alignments in output (default "		+to_string(MAX_ALIGNS_O_DEFAULT)+")",
 	"-io              , output reads in the same order as in the input (may be a bit slower and with higher memory)",
 
+	"... Hotspot finding",
+	"-rc              , reversed complement of pattern will be searched, too",
+	"-mc x            , minimizer count, maximum x minimizers will be looked up per read(default "+to_string(FRAGMENT_COUNT_DEFAULT)+")",
+	"-ws x            , window size of hotspot (default "+to_string(SPOT_SIZE_DEFAULT)+")",
+	"-wh x            , minimum hotspot score (default "+to_string(SPOT_HITS_DEFAULT)+")",
 
+	"... DP parameter",
+	"-d x             , max distance in alignment (default "			+to_string(MAX_DIST_DEFAULT)+")",
+	"-weights s,c,l,h , weights used for alignment-DP: s,c,l,h are costs for gap start, gap continue, minimum mismatch cost and maximum mismatch cost, respectively (default " + edsm_align::align_costs.to_string() + ")",
+	"-sd x            , satisfying distance, when best alignment has a distance x or smaller, don't align further reads (default "+to_string(DOUBT_DIST_DEFAULT)+")",
+	"-mac x           , max number of alignments completely calculated (default "	+to_string(MAX_ALIGNS_C_DEFAULT)+")",
+	"-mat x           , max number of alignments tried to calculate (default "	+to_string(MAX_ALIGNS_T_DEFAULT)+")",
+
+	"... Paired end parameter",
 	"-mp              , filename of FASTQ containing the mates (optional, presence indicates paired-end mode)",
-	"-fragment-mean   , mean length of fragment in paired-end mode (ignored if -mp is not present, DEFAULT=" + std::to_string(PE_FRAGMENT_LENGTH) + ")",
+	"-fragment-mean   , mean length of fragment in paired-end mode (ignored if -mp is not present, default " + std::to_string(PE_FRAGMENT_LENGTH) + ")",
 	"-fallback        , fallback for paired-end mapping (ignored if -mp is not present)",
-	"-fmat            , maximum number of alignments tried for fallback (ignored if -mp and -fallback are not present, DEFAULT=" + std::to_string(MAX_ALIGNS_T_FALLBACK_DEFAULT) + ")",
-	"-mam x           , max number of alignments used for pairing (DEFAULT x="	+to_string(MAX_ALIGNS_M_DEFAULT)+")",
+	"-fmat            , maximum number of alignments tried for fallback (ignored if -mp and -fallback are not present, default " + std::to_string(MAX_ALIGNS_T_FALLBACK_DEFAULT) + ")",
+	"-mam x           , max number of alignments used for pairing (default "	+to_string(MAX_ALIGNS_M_DEFAULT)+")",
 
-	"-tmp tmp_dir     , to change DEFAULT tmp direcoty from /tmp to tmp_dir",
-	"-tc x            , maximum number of threads used per index copy (DEFAULT uses as many as avaiable)"
+	"... Control",
+	"-tmp tmp_dir    , to set tmp direcoty (default "+ TMP_DIR_DEFAULT +")",
+	"-t x            , maximum number of threads used per index copy (default uses as many as avaiable)"
 	};
 
 	cout << "'gedmap align' algings reads to the given GEDS and MINIMIZER INDEX" << endl;
+	cout << "If [2] was build with allowing structural variants, its strongly\n recommended to provide the adjacency file (parameter -a)" << endl;
 	dotline();
 	cout << expected_arguments(args, params);
 	dotline();
@@ -473,16 +489,16 @@ void handle_input(int argc,  char**& argv, gedmap_mini::minimizer_index & eoc, s
 	string 	fname_sam = "";
 
 	try{
-		if(argc < 3) throw invalid_argument( "in gedmap align_min: " + missing_arguments);
-		if(string(argv[2]) == "-h" || string(argv[2]) == "--help"){
-			print_help();
-			exit(0);
-		}
+		for(int i = 0; i < argc; i++)
+			if(string(argv[i]) == "-h" || string(argv[i]) == "--help"){
+				print_help();
+				exit(0);
+			}
 
 		if(argc < 5) throw invalid_argument( "in gedmap align_min: " + missing_arguments);
 
-		fname_EDS		= argv[2];
-		fname_fastq		= argv[3];
+		fname_fastq	= argv[2];
+		fname_EDS		= argv[3];
 		fname_eoc		= argv[4];
 		bool input_error = false;
 
@@ -543,7 +559,7 @@ void handle_input(int argc,  char**& argv, gedmap_mini::minimizer_index & eoc, s
 				MAX_DIST = parse_uint32_vector(value);
 			else if("-2fa" == param)
 				input_error |= sdsl_load(value, p2FA);
-			else if("-tc" == param)
+			else if("-t" == param)
 				THREAD_COUNT = stoi(value);
 			else if("-a" == param)
 				input_error |= sdsl_load(value, ADJ);
@@ -641,11 +657,13 @@ void handle_input(int argc,  char**& argv, std::string & EDS, adjacency & adj, p
 	string 	fname_EDS;
 
 	try{
+		for(int i = 0; i < argc; i++)
+			if(string(argv[i]) == "-h" || string(argv[i]) == "--help"){
+				print_help();
+				exit(0);
+			}
 		if(argc < 3) throw invalid_argument( "in gedmap sample: " + missing_arguments);
-		if(string(argv[2]) == "-h" || string(argv[2]) == "--help"){
-			print_help();
-			exit(0);
-		}
+
 
 		string fname_EDS = argv[2];
 		fname_out = fname_EDS + "." +  FEX_SAMPLE;

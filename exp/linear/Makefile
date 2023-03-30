@@ -1,10 +1,10 @@
-include ../PATHS
+include ../../PATHS
 #################################################
 ################# EXPERIMENT ####################
 #################################################
 # use following commands to run experiments of  #
 # the paper (please ensure you downloaded the   #
-# data and compiled the program before)         #
+# data before)                                  #
 #                                               #
 # make                                          #
 #                                               #
@@ -19,19 +19,19 @@ include ../PATHS
 # in subdir/map.out                             #
 #################################################
 
-gedmap   = ..
+gedmap   = ../..
 
 #OUTPUT DIRECTORIES
 GEDMAP_DIR  = gedmap
 HISAT_DIR   = hisat2
 GIRAFFE_DIR = giraffe
 MINIMAP_DIR = minimap2
-samples     = samples
+samples     = ../samples
 
 #INPUT DATA
 DATA = $(gedmap)/data
 FA   = $(DATA)/hs37d5.fa
-VCF  = $(DATA)/human.vcf
+VCF  = /dev/null
 GZ_DIR =$(DATA)/gz
 
 
@@ -42,18 +42,10 @@ $(GIRAFFE_DIR)/all:  $(GIRAFFE_DIR)/index.out $(GIRAFFE_DIR)/map.eval  $(GIRAFFE
 $(MINIMAP_DIR)/all:  $(MINIMAP_DIR)/index.out $(MINIMAP_DIR)/map.eval  $(MINIMAP_DIR)/map.out 
 
 
-######################### GENERATE SAMPLES ##########################
+############################ SAMPLES ############################
 
-
-samples:  $(GEDMAP_DIR)/human.geds
-	mkdir -p $(samples)
-	$(gedmap)/gedmap sample $(GEDMAP_DIR)/human.geds -c 100000000 -2fa $(GEDMAP_DIR)/human.geds.2fa -a $(GEDMAP_DIR)/human.geds.adj -o $(samples)/set_100.fq -l 100 -e 1000 -e_d 1000 -e_i 1000
-	$(gedmap)/gedmap sample $(GEDMAP_DIR)/human.geds -c 100000000 -2fa $(GEDMAP_DIR)/human.geds.2fa -a $(GEDMAP_DIR)/human.geds.adj -o $(samples)/set_250.fq -l 250 -e 1000 -e_d 1000 -e_i 1000
-	$(gedmap)/gedmap sample $(GEDMAP_DIR)/human.geds -c 100000000 -2fa $(GEDMAP_DIR)/human.geds.2fa -ae $(GEDMAP_DIR)/human.geds.adj -o $(samples)/set_cnv.fq -l 150 -e 1000 -e_d 1000 -e_i 1000
-	head -n 4000000 $(samples)/set_100.fq > $(samples)/set_100a.fq
-	head -n 4000000 $(samples)/set_250.fq > $(samples)/set_250a.fq
-	head -n 4000000 $(samples)/set_cnv.fq > $(samples)/set_cnva.fq
-
+../samples: 
+	cd .. && make samples
 
 ############################  GEDMAP   ############################
 #BUILD
@@ -63,26 +55,26 @@ geds = $(GEDMAP_DIR)/human.geds
 $(GEDMAP_DIR)/index.out: $(FA) $(VCF)
 	mkdir -p $(GEDMAP_DIR)
 	{ /usr/bin/time -v  $(gedmap)/gedmap parse $(FA) $(VCF) -o $(geds)                       ; } 2>&1 | tee    $(GEDMAP_DIR)/index.out
-	{ /usr/bin/time -v $(gedmap)/gedmap index  $(geds)  -a $(geds).adj -2fa $(geds).2fa -t 64; } 2>&1 | tee -a $(GEDMAP_DIR)/index.out
+	{ /usr/bin/time -v $(gedmap)/gedmap index  $(geds) -2fa $(geds).2fa -t 64                ; } 2>&1 | tee -a $(GEDMAP_DIR)/index.out
 
 #MAP
-$(GEDMAP_DIR)/map.out: samples
-	{ /usr/bin/time -v $(gedmap)/gedmap align $(samples)/set_100.fq  $(geds) $(geds).min -2fa $(geds).2fa -a $(geds).adj -o /dev/null -rc -t 8 -d 15 -mat 1000 ; } 2>&1 | tee $(GEDMAP_DIR)/maps1.out
-	{ /usr/bin/time -v $(gedmap)/gedmap align $(samples)/set_250.fq  $(geds) $(geds).min -2fa $(geds).2fa -a $(geds).adj -o /dev/null -rc -t 8                 ; } 2>&1 | tee $(GEDMAP_DIR)/maps2.out
-	{ /usr/bin/time -v $(gedmap)/gedmap align $(samples)/set_cnv.fq  $(geds) $(geds).min -2fa $(geds).2fa -a $(geds).adj -o /dev/null -rc -t 8                 ; } 2>&1 | tee $(GEDMAP_DIR)/mapcn.out
-	{ /usr/bin/time -v $(gedmap)/gedmap align $(DATA)/reads1.fq      $(geds) $(geds).min -2fa $(geds).2fa -a $(geds).adj -o /dev/null -rc -t 8 -d 100          ; } 2>&1 | tee $(GEDMAP_DIR)/mapr1.out
-	{ /usr/bin/time -v $(gedmap)/gedmap align $(DATA)/reads2.fq      $(geds) $(geds).min -2fa $(geds).2fa -a $(geds).adj -o /dev/null -rc -t 8 -d 100          ; } 2>&1 | tee $(GEDMAP_DIR)/mapr2.out
+$(GEDMAP_DIR)/map.out: ../samples
+	{ /usr/bin/time -v $(gedmap)/gedmap align $(samples)/set_100.fq  $(geds) $(geds).min -2fa $(geds).2fa -o /dev/null -rc -t 8                 ; } 2>&1 | tee $(GEDMAP_DIR)/maps1.out
+	{ /usr/bin/time -v $(gedmap)/gedmap align $(samples)/set_250.fq  $(geds) $(geds).min -2fa $(geds).2fa -o /dev/null -rc -t 8                 ; } 2>&1 | tee $(GEDMAP_DIR)/maps2.out
+	{ /usr/bin/time -v $(gedmap)/gedmap align $(samples)/set_cnv.fq  $(geds) $(geds).min -2fa $(geds).2fa -o /dev/null -rc -t 8                 ; } 2>&1 | tee $(GEDMAP_DIR)/mapcn.out
+	{ /usr/bin/time -v $(gedmap)/gedmap align $(DATA)/reads1.fq      $(geds) $(geds).min -2fa $(geds).2fa -o /dev/null -rc -t 8 -d 100          ; } 2>&1 | tee $(GEDMAP_DIR)/mapr1.out
+	{ /usr/bin/time -v $(gedmap)/gedmap align $(DATA)/reads2.fq      $(geds) $(geds).min -2fa $(geds).2fa -o /dev/null -rc -t 8 -d 100          ; } 2>&1 | tee $(GEDMAP_DIR)/mapr2.out
 
 	$(call get_time_and_space,  $(GEDMAP_DIR))
 
 
 #EVALUATE
-$(GEDMAP_DIR)/map.eval: samples $(DATA)/reads1a.fq $(DATA)/reads2a.fq
-	$(gedmap)/gedmap align $(samples)/set_100a.fq  $(geds)  $(geds).min -2fa $(geds).2fa -a $(geds).adj -o $(GEDMAP_DIR)/tmps1.sam -rc -t 8 -d 15 -mat 1000
-	$(gedmap)/gedmap align $(samples)/set_250a.fq  $(geds)  $(geds).min -2fa $(geds).2fa -a $(geds).adj -o $(GEDMAP_DIR)/tmps2.sam -rc -t 8
-	$(gedmap)/gedmap align $(samples)/set_cnva.fq  $(geds)  $(geds).min -2fa $(geds).2fa -a $(geds).adj -o $(GEDMAP_DIR)/tmpcn.sam -rc -t 8
-	$(gedmap)/gedmap align $(DATA)/reads1a.fq      $(geds)  $(geds).min -2fa $(geds).2fa -a $(geds).adj -o $(GEDMAP_DIR)/tmpr1.sam -rc -t 8 -d 100
-	$(gedmap)/gedmap align $(DATA)/reads2a.fq      $(geds)  $(geds).min -2fa $(geds).2fa -a $(geds).adj -o $(GEDMAP_DIR)/tmpr2.sam -rc -t 8 -d 100
+$(GEDMAP_DIR)/map.eval: ../samples $(DATA)/reads1a.fq $(DATA)/reads2a.fq
+	$(gedmap)/gedmap align $(samples)/set_100a.fq  $(geds)  $(geds).min -2fa $(geds).2fa -o $(GEDMAP_DIR)/tmps1.sam -rc -t 8
+	$(gedmap)/gedmap align $(samples)/set_250a.fq  $(geds)  $(geds).min -2fa $(geds).2fa -o $(GEDMAP_DIR)/tmps2.sam -rc -t 8
+	$(gedmap)/gedmap align $(samples)/set_cnva.fq  $(geds)  $(geds).min -2fa $(geds).2fa -o $(GEDMAP_DIR)/tmpcn.sam -rc -t 8
+	$(gedmap)/gedmap align $(DATA)/reads1a.fq      $(geds)  $(geds).min -2fa $(geds).2fa -o $(GEDMAP_DIR)/tmpr1.sam -rc -t 8 -d 100
+	$(gedmap)/gedmap align $(DATA)/reads2a.fq      $(geds)  $(geds).min -2fa $(geds).2fa -o $(GEDMAP_DIR)/tmpr2.sam -rc -t 8 -d 100
 
 	$(call all_my_eval, GEDMAP, $(GEDMAP_DIR))
 
@@ -94,12 +86,11 @@ hs_idx=$(HISAT_DIR)/human.idx
 
 $(HISAT_DIR)/index.out:  $(FA)
 	mkdir -p $(HISAT_DIR)
-	{ /usr/bin/time -v $(hisat2_dir)/hisat2_extract_snps_haplotypes_VCF.py -v --non-rs $(FA) $(VCF_GZ_H) $(HISAT_DIR)/human ; } 2>&1 | tee $(HISAT_DIR)/index.out
-	{ /usr/bin/time -v $(hisat2_dir)/hisat2-build -f --large-index --bmax 10000000 --dcv 4096 --threads 64 --snp $(HISAT_DIR)/human.snp --haplotype $(HISAT_DIR)/human.haplotype  $(FA) $(HISAT_DIR)/human.idx ; } 2>&1 | tee -a $(HISAT_DIR)/index.out
+	{ /usr/bin/time -v $(hisat2_dir)/hisat2-build -f --large-index --bmax 10000000 --dcv 4096 --threads 64 $(FA) $(HISAT_DIR)/human.idx ; } 2>&1 | tee -a $(HISAT_DIR)/index.out
 
 
 #MAP
-$(HISAT_DIR)/map.out: samples
+$(HISAT_DIR)/map.out: ../samples
 	{ /usr/bin/time -v $(hisat2_dir)/hisat2 -q -x $(hs_idx) -U $(samples)/set_100.fq -S /dev/null --threads 8 --sensitive --np 0 -k 1 ; } 2>&1 | tee $(HISAT_DIR)/maps1.out
 	{ /usr/bin/time -v $(hisat2_dir)/hisat2 -q -x $(hs_idx) -U $(samples)/set_250.fq -S /dev/null --threads 8 --sensitive --np 0 -k 1 ; } 2>&1 | tee $(HISAT_DIR)/maps2.out
 	{ /usr/bin/time -v $(hisat2_dir)/hisat2 -q -x $(hs_idx) -U $(samples)/set_cnv.fq -S /dev/null --threads 8 --sensitive --np 0 -k 1 ; } 2>&1 | tee $(HISAT_DIR)/mapcn.out
@@ -108,7 +99,7 @@ $(HISAT_DIR)/map.out: samples
 
 	$(call get_time_and_space,  $(HISAT_DIR))
 
-$(HISAT_DIR)/map.eval: samples
+$(HISAT_DIR)/map.eval: ../samples
 	$(hisat2_dir)/hisat2 -q -x $(hs_idx) -U $(samples)/set_100a.fq -S $(HISAT_DIR)/tmps1.sam --threads 8  --sensitive  --np 0 -k 1 --reorder
 	$(hisat2_dir)/hisat2 -q -x $(hs_idx) -U $(samples)/set_250a.fq -S $(HISAT_DIR)/tmps2.sam --threads 8  --sensitive  --np 0 -k 1 --reorder
 	$(hisat2_dir)/hisat2 -q -x $(hs_idx) -U $(samples)/set_cnva.fq -S $(HISAT_DIR)/tmpcn.sam --threads 8  --sensitive  --np 0 -k 1 --reorder
@@ -144,19 +135,15 @@ $(GZ_DIR)/all_vcf_tabix: $(GZ_DIR)/all_vcf_downloaded
 	touch $(GZ_DIR)/all_vcf_tabix
 
 
-#$(GIRAFFE_DIR)/index.out: ####################### STILL THROWS ERRORS
-#	mkdir -p $(GIRAFFE_DIR)
-#	{ /usr/bin/time -v $(vg) autoindex --workflow giraffe -r $(FA)  -v $(VCF_GZ_V) -p $(vg_prefix)  -t 64 ; } 2>&1 | tee -a $(GIRAFFE_DIR)/index_neu.out
-
 $(GIRAFFE_DIR)/index.out:
 	mkdir -p $(GIRAFFE_DIR)
-	{ /usr/bin/time -v $(vg) construct -r  $(FA) -v $(VCF_GZ_V) > $(vg_graph) -t 64 ; } 2>&1 | tee $(GIRAFFE_DIR)/index.out
+	{ /usr/bin/time -v $(vg) construct -r  $(FA) > $(vg_graph) -t 64 ; } 2>&1 | tee $(GIRAFFE_DIR)/index.out
 	{ /usr/bin/time -v $(vg) index -x $(vg_prefix).xg $(vg_graph) -L -t 64 ; } 2>&1 | tee -a $(GIRAFFE_DIR)/index.out
 	{ /usr/bin/time -v $(vg) view $(vg_graph) --threads 64 > $(vg_prefix).gfa  ; } 2>&1 | tee -a $(GIRAFFE_DIR)/index.out
 	{ /usr/bin/time -v $(vg) autoindex --workflow giraffe -g $(vg_prefix).gfa -p $(vg_prefix)  -t 64 ; } 2>&1 | tee -a $(GIRAFFE_DIR)/index.out
 
 
-$(GIRAFFE_DIR)/map.out: samples
+$(GIRAFFE_DIR)/map.out: ../samples
 	{ /usr/bin/time -v  $(vg) giraffe -Z $(gbz) -f $(samples)/set_100.fq -t 8 -o SAM > /dev/null ; } 2>&1 | tee $(GIRAFFE_DIR)/maps1.out
 	{ /usr/bin/time -v  $(vg) giraffe -Z $(gbz) -f $(samples)/set_250.fq -t 8 -o SAM > /dev/null ; } 2>&1 | tee $(GIRAFFE_DIR)/maps2.out
 	{ /usr/bin/time -v  $(vg) giraffe -Z $(gbz) -f $(samples)/set_cnv.fq -t 8 -o SAM > /dev/null ; } 2>&1 | tee $(GIRAFFE_DIR)/mapcn.out
@@ -165,12 +152,12 @@ $(GIRAFFE_DIR)/map.out: samples
 
 	$(call get_time_and_space,  $(GIRAFFE_DIR))
 
-$(GIRAFFE_DIR)/map.eval: samples
-	#$(vg) giraffe -Z $(gbz) -f $(samples)/set_100a.fq -t 8 -o SAM > $(GIRAFFE_DIR)/tmps1.sam
-	#$(vg) giraffe -Z $(gbz) -f $(samples)/set_250a.fq -t 8 -o SAM > $(GIRAFFE_DIR)/tmps2.sam
+$(GIRAFFE_DIR)/map.eval: ../samples
+	$(vg) giraffe -Z $(gbz) -f $(samples)/set_100a.fq -t 8 -o SAM > $(GIRAFFE_DIR)/tmps1.sam
+	$(vg) giraffe -Z $(gbz) -f $(samples)/set_250a.fq -t 8 -o SAM > $(GIRAFFE_DIR)/tmps2.sam
 	$(vg) giraffe -Z $(gbz) -f $(samples)/set_cnva.fq -t 8 -o SAM > $(GIRAFFE_DIR)/tmpcn.sam
-	#$(vg) giraffe -Z $(gbz) -f $(DATA)/reads1a.fq     -t 8 -o SAM > $(GIRAFFE_DIR)/tmpr1.sam
-	#$(vg) giraffe -Z $(gbz) -f $(DATA)/reads2a.fq     -t 8 -o SAM > $(GIRAFFE_DIR)/tmpr2.sam
+	$(vg) giraffe -Z $(gbz) -f $(DATA)/reads1a.fq     -t 8 -o SAM > $(GIRAFFE_DIR)/tmpr1.sam
+	$(vg) giraffe -Z $(gbz) -f $(DATA)/reads2a.fq     -t 8 -o SAM > $(GIRAFFE_DIR)/tmpr2.sam
 
 	$(call all_my_eval, GIRAFFE, $(GIRAFFE_DIR))
 
@@ -182,7 +169,7 @@ $(MINIMAP_DIR)/index.out:
 	mkdir -p $(MINIMAP_DIR)
 	{ /usr/bin/time -v $(minimap2) -x sr -d $(MINIMAP_DIR)/human.min $(FA) ; } 2>&1 | tee $(MINIMAP_DIR)/index.out
 
-$(MINIMAP_DIR)/map.out: samples
+$(MINIMAP_DIR)/map.out: ../samples
 	{ /usr/bin/time -v  $(minimap2) -a $(MINIMAP_DIR)/human.min -t 8 $(samples)/set_100.fq > /dev/null ; } 2>&1 | tee minimap2/maps1.out
 	{ /usr/bin/time -v  $(minimap2) -a $(MINIMAP_DIR)/human.min -t 8 $(samples)/set_250.fq > /dev/null ; } 2>&1 | tee minimap2/maps2.out
 	{ /usr/bin/time -v  $(minimap2) -a $(MINIMAP_DIR)/human.min -t 8 $(samples)/set_cnv.fq > /dev/null ; } 2>&1 | tee minimap2/mapcn.out
@@ -191,7 +178,7 @@ $(MINIMAP_DIR)/map.out: samples
 
 	$(call get_time_and_space,  $(MINIMAP_DIR))
 
-$(MINIMAP_DIR)/map.eval: samples
+$(MINIMAP_DIR)/map.eval: ../samples
 	$(minimap2) -a $(MINIMAP_DIR)/human.min -t 8 $(samples)/set_100a.fq > $(MINIMAP_DIR)/tmps1.sam
 	$(minimap2) -a $(MINIMAP_DIR)/human.min -t 8 $(samples)/set_250a.fq > $(MINIMAP_DIR)/tmps2.sam
 	$(minimap2) -a $(MINIMAP_DIR)/human.min -t 8 $(samples)/set_cnva.fq > $(MINIMAP_DIR)/tmpcn.sam

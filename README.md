@@ -68,13 +68,13 @@ The files 'map.eval' contains the information about mapping rate and the accurac
                                                        
                                                        
 'gedmap parse' parses a FA file and a VCF file to an EDS graph.
-.......................................................
+
 2 Arguments expected:
 
 	[1] filename of FA
 	[2] filename of VCF
 	
-.......................................................
+
 Optional parameters: 
 
 	-nosv        , do not include structural variants, i.e. copy number variation and other large variation. (Only an EDS is generated)
@@ -82,7 +82,7 @@ Optional parameters:
 	-lim l       , variants with ref or alt larger than l are handled as structural variants (default 50)
 	-o           , output prefix for the geds, adj and 2fa file (default [1])
 
-.......................................................
+
                                      
                                      
                                      
@@ -91,12 +91,12 @@ Optional parameters:
 'gedmap index' calculates a minimizer index of a given EDS graph.
 If [1] was build with allowing structural variants, its strongly
  recommended to provide the adjacency file (parameter -a). This also accelerates the indexing process, because nodes can be indexed parallel. Poviding parameter -2fa can also acellerate the the indexing process if the GEDS contains multiple sequences.
-.......................................................
+
 1 Arguments expected:
 
 	[1] filename of GEDS
 
-.......................................................
+
 Optional parameters: 
 ... IO
 
@@ -116,7 +116,7 @@ Optional parameters:
 	-tmp tmp_dir, to set tmp direcoty (default /tmp)
 	-t x      , maximum number of threads used (default 128)
 
-.......................................................
+
                                                        
                       
 ### gedmap align:             
@@ -124,16 +124,17 @@ Optional parameters:
 'gedmap align' algings reads to the given GEDS and MINIMIZER INDEX
 If [2] was build with allowing structural variants, its strongly
  recommended to provide the adjacency file (parameter -a)
-.......................................................
+
 3 Arguments expected:
 
 	[1] filename of FASTQ
 	[2] filename of GEDS
 	[3] filename of MINI
 
-.......................................................
+
 Optional parameters: 
-... IO
+
+ IO
 
 	-2fa             , .2fa-file , if given this is used to transform GEDS-positions to FA positions
 	-a fname         , file name of the adijacency file
@@ -142,14 +143,14 @@ Optional parameters:
 	-mao x           , max number of alignments in output (default 1)
 	-io              , output reads in the same order as in the input (may be a bit slower and with higher memory)
 
-... Hotspot finding
+Hotspot finding
 
 	-rc              , reversed complement of pattern will be searched, too
 	-mc x            , minimizer count, maximum x minimizers will be looked up per read(default 80)
 	-ws x            , window size of hotspot (default 500)
 	-wh x            , minimum hotspot score (default 1)
 
-... DP parameter
+DP parameter
 
 	-d x             , max distance in alignment (default 30)
 	-weights s,c,l,h , weights used for alignment-DP: s,c,l,h are costs for gap start, gap continue, minimum mismatch cost and maximum mismatch cost, respectively (default 6,1,0,4)
@@ -157,7 +158,7 @@ Optional parameters:
 	-mac x           , max number of alignments completely calculated (default 5)
 	-mat x           , max number of alignments tried to calculate (default 10)
 
-... Paired end parameter
+Paired end parameter
 
 	-mp              , filename of FASTQ containing the mates (optional, presence indicates paired-end mode)
 	-fragment-mean   , mean length of fragment in paired-end mode (ignored if -mp is not present, default 700)
@@ -165,23 +166,23 @@ Optional parameters:
 	-fmat            , maximum number of alignments tried for fallback (ignored if -mp and -fallback are not present, default 100)
 	-mam x           , max number of alignments used for pairing (default 1,10)
 
-... Control
+Control
 
 	-tmp tmp_dir    , to set tmp direcoty (default /tmp)
 	-t x            , maximum number of threads used per index copy (default uses as many as avaiable)
 
-.......................................................
+
                                                        
                                                                                          
 ### gedmap sample:             
    
 'gedmap sample' samples reads from the given GEDS.
-.......................................................
+
 1 Arguments expected:
 
 	[1] filename of GEDS
 
-.......................................................
+
 Optional parameters: 
 
 	-c x , sample x reads (count, DEFAULT x=100)
@@ -197,12 +198,4 @@ Optional parameters:
 	-a fname,  file name of the adijacency file
 	-ae fname,  file name of the adijacency file, only sample reads that go over edges in the graph
 
-for all probabilities above:                           
- x : prob (1/x)                                        
- 0 : 0                                                 
- 1 : 1                                                 
- 2 : .5                                                
- 3 : .33                                               
- etc.                                                  
-.......................................................
-
+for all probabilities above: prob = 1/x (f.e. if x=4 then prob=25%) and prob=0 for x=0 

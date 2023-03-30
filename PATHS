@@ -2,7 +2,11 @@
 ############## SET CORRECT PATHS ################
 #################################################
 
-time       = /usr/bin/time
-hs_dir     = ~/hisat2
-vg_dir     = ~/vg
-sdsl_dir   = ~/sdsl-lite
+# FOR HISAT2 THE DIRECTORY CONTAINING THE BINARIES hisat2_extract_snps_haplotypes_VCF.py, hisat2-build and hisat2
+# FOR  
+
+time         = /usr/bin/time
+hisat2_dir   = ~/hisat2
+vg           = ~/vg/bin/vg
+minimap2     = ~/minimap2/minimap2
+sdsl_dir     = ~/sdsl-lite

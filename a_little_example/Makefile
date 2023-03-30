@@ -34,7 +34,7 @@ clean:
 
 #PARSE TO GEDS
 $(GEDS): $(FASTA) $(VFC) ../gedmap
-	../gedmap parse $(FASTA) $(VFC) $(GEDS)
+	../gedmap parse $(FASTA) $(VFC) -o $(GEDS)
 
 #GENERATE INDEX OF GEDS
 $(INDEX):  $(GEDS) ../gedmap
@@ -42,5 +42,4 @@ $(INDEX):  $(GEDS) ../gedmap
 
 #ALIGN TO GEDS USING INDEX
 $(SAM): $(GEDS) $(INDEX) $(FASTQ) ../gedmap
-	../gedmap align  $(GEDS) $(FASTQ) $(INDEX) -o $(SAM) -a $(ADJ) \
-	-rc -ws 20 -mao 1 -2fa $(2FA) -d 3
+	../gedmap align  $(FASTQ) $(GEDS)  $(INDEX) -o $(SAM) -a $(ADJ) -rc  -mao 1 -2fa $(2FA) -d 10

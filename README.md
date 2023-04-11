@@ -5,7 +5,7 @@ This software is part of the article *Efficient short read mapping to a pangenom
 
 # Requirements
 
-A modern, C++11 ready compiler such as g++ version 4.9 or higher or clang version 3.2 or higher .
+A modern, C++2a compiler such as g++ version 10 or higher.
 
 Installation of the SDSL library. (https://github.com/simongog/sdsl-lite)
 
@@ -98,20 +98,21 @@ If [1] was build with allowing structural variants, its strongly
 
 
 Optional parameters: 
-... IO
+
+ IO
 
 	-a   fname  , file name of the adijacency file.
 	-2fa fname  , file of the 2fa file
 	-o fname    , file name of minimizer index (default [1].min)
 
-... Index parameter
+ Index parameter
 
 	-k k        , kmer size (default 20)
 	-w w        , window size (default 5)
 	-n n        , maximum number of N allowed in a minimizer (default 2)
 	-trim x     , trims kmer sets greater than x from index (default 1000 , 0 for no trim)
 
-... Control
+ Control
 
 	-tmp tmp_dir, to set tmp direcoty (default /tmp)
 	-t x      , maximum number of threads used (default 128)

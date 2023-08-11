@@ -1,0 +1,49 @@
+# A little example
+S	1	AAT	SN:Z:S1 SO:i:1
+S	2	C	SN:Z:S1 SO:i:4
+S	3	A
+S	4	AT	SN:Z:S1 SO:i:6
+S	5	GGT	SN:Z:S1 SO:i:7
+S	6	AAT	SN:Z:S1 SO:i:10
+S	7	A
+S	8	AT	SN:Z:S1 SO:i:13
+S	9	AAT	SN:Z:S1 SO:i:15
+S	10	CCC
+S	11	AATNNN	SN:Z:S1 SO:i:18
+S	12	CCCCCCAAA	SN:Z:S2 SO:i:1
+S	13	CAC	SN:Z:S2 SO:i:10
+S	14	ACC
+S	15	TAC
+S	16	CTAAACCCCTC	SN:Z:S2 SO:i:13
+S	17	TCTT	SN:Z:S3 SO:i:1
+S	18	TGCGGC	SN:Z:S3 SO:i:5
+S	19	TT	SN:Z:S3 SO:i:11
+S	20	TGGCGG	SN:Z:S3 SO:i:13
+S	21	CCTTT	SN:Z:S3 SO:i:19
+L	1	+	2	+
+L	1	+	3	+
+L	2	+	4	+
+L	3	+	4	+
+L	4	+	5	+
+L	4	+	6	+
+L	5	+	6	+
+L	6	+	7	+
+L	6	+	8	+
+L	7	+	8	+
+L	8	+	9	+
+L	8	+	10	+
+L	9	+	11	+
+L	10	+	11	+
+L	12	+	13	+
+L	12	+	14	-
+L	12	+	15	-
+L	13	+	16	+
+L	14	-	16	+
+L	15	-	16	+
+L	17	+	18	+
+L	17	+	21	+
+L	18	+	19	+
+L	18	+	20	+
+L	19	+	20	+
+L	20	+	21	+
+L	20	+	18	+

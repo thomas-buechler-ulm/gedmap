@@ -3,7 +3,7 @@
 ##############   LITTLE EXAMPLE   ###############
 #################################################
 
-FASTA = ale.fa  
+FASTA = ale.fa
 VFC   = ale.vcf
 FASTQ = ale.fq
 
@@ -75,4 +75,4 @@ $(GFA_SAM): $(GFA_GEDS) $(GFA_INDEX) $(FASTQ) ../gedmap
 	../gedmap align  $(FASTQ) $(GFA_GEDS)  $(GFA_INDEX) -o $(GFA_SAM) -a $(GFA_ADJ) -rc  -mao 1 -2gfa $(GFA_2GFA) -d 10
 
 clean:
-	rm -f $(GEDS) $(INDEX) $(SAM) $(2FA) $(ADJ) $(GFA_GEDS) $(GFA_ADJ) $(GFA_2GFA) $(GFA_INDEX) $(GFA_SAM)
+	rm -f $(GEDS) $(INDEX) $(SAM) $(2FA) $(ADJ) $(GFA_GEDS) $(GFA_ADJ) $(GFA_2GFA) $(GFA_INDEX) $(GFA_SAM) $(FASTA).fai $(GFA).transformed.gfa

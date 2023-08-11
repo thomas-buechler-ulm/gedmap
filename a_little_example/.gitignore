@@ -2,6 +2,7 @@
 !.gitignore
 !Makefile
 !ale.fa  
+!ale.gfa  
 !ale.vcf
 !ale.fq
 !ALIGNMENTS.txt

@@ -89,7 +89,21 @@ Optional parameters:
 	-o           , output prefix for the geds, adj and 2fa file (default [1])
 
 
-                                     
+### gedmap parse_gfa
+'gedmap parse_gfa' parses a GFA file (bidirected sequence graph) and to an EDS graph.
+Therefore, subsequently bubbles in the graph will be detected and replaced by EDS labels.
+Since this is not part of the published article, a more elaborate desciption on how this is done can be found here: https://www.uni-ulm.de/fileadmin/website_uni_ulm/iui.inst.190/preprints/gedmap_update.pdf
+
+1 Arguments expected:
+
+	[1] filename of GFA
+ 
+Optional parameters: 
+
+	-o           , output prefix for the geds, adj and 2gfa file (default [1])
+	-w           , maximum bubble with (default 50)
+	-p           , maximum number of paths in bubble (default 20)
+
                                      
                                      
 ### gedmap index:                  
@@ -144,6 +158,7 @@ Optional parameters:
  IO
 
 	-2fa             , .2fa-file , if given this is used to transform GEDS-positions to FA positions
+	-2gfa            , .2gfa-file, if given this is used to transform GEDS-positions to GFA-nodes or sequence positions
 	-a fname         , file name of the adijacency file
 	-o               , fname, output will be stored in file fname (default  [2].sam)
 	-oa              , only aligned reads will be reported

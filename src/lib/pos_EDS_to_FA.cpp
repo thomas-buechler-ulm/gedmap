@@ -2,7 +2,10 @@
 using namespace std;
 using namespace sdsl;
 
-
+struct Transform{
+	virtual std::tuple<std::string,uint64_t,std::string> operator()(uint64_t EDS_pos) const = 0;
+	virtual bool empty() const = 0;
+};
 
 /**
  * @brief data structure that allowes to map a position of the EDS to original FA position
@@ -13,7 +16,7 @@ using namespace sdsl;
  * chrom_names: names of chromosomes in EDS
  * chrom_starts: chrom_names[i] start at EDS[chrom_start[i]]
  */
-struct pos_EDS_to_FA_type{
+struct pos_EDS_to_FA_type: public Transform{
 	typedef sdsl::int_vector<>::size_type	size_type;
 	
 	
@@ -29,10 +32,10 @@ struct pos_EDS_to_FA_type{
 	pos_EDS_to_FA_type(sdsl::bit_vector ref_ind, std::vector<std::string> chrom_names, std::vector<uint64_t> chrom_starts);
 	
 	/** @brief 
-	 * <c,p,o> = (pos),
-	 * with pos is in chromosom c at position p (with variant offset o)
+	 * <c,p,a> = (pos),
+	 * with pos is in chromosom c at position p (a additional info string)
 	 */
-	std::tuple<std::string,uint64_t,uint32_t> operator()(uint64_t EDS_pos) const;
+	std::tuple<std::string,uint64_t,std::string> operator()(uint64_t EDS_pos) const;
 	
 	bool empty() const;
 
@@ -77,7 +80,7 @@ pos_EDS_to_FA_type::pos_EDS_to_FA_type(string ref_ind_fname, vector<string> chro
  * if EDS[i] is in a variant scope, then EDS[i] does not occour in FA. 
  * The previos position that occours in FA is EDS[i-o]
  */
-tuple<string,uint64_t,uint32_t> pos_EDS_to_FA_type::operator()(const uint64_t EDS_pos) const{
+tuple<string,uint64_t,string> pos_EDS_to_FA_type::operator()(const uint64_t EDS_pos) const{
 	
 	
 	uint32_t chrom_id = 0;
@@ -92,7 +95,7 @@ tuple<string,uint64_t,uint32_t> pos_EDS_to_FA_type::operator()(const uint64_t ED
 	if(chrom_id > 0) fa_symbols -= rs_ref_ind(chrom_starts[chrom_id]);
 
 	
-	return make_tuple( chrom_names[chrom_id], fa_symbols ,off);
+	return make_tuple( chrom_names[chrom_id], fa_symbols , off?(" XO:i:" + to_string(off)):"");
 }
 
 
@@ -175,7 +178,7 @@ void pos_EDS_to_FA_type::load(std::istream& in){
 	rs_ref_ind		.load(in,&ref_ind);
 	chrom_starts	.load(in);
 	
-	vector<int_vector<8>> c_names = vector<int_vector<8>>(chrom_starts.size());		
+	vector<int_vector<8>> c_names = vector<int_vector<8>>(chrom_starts.size());
 	load_vector<int_vector<8>>(c_names,in);
 	chrom_names = ivv_to_string_vector(c_names);	
 }

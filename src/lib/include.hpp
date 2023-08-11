@@ -3,6 +3,7 @@
 #include "merge.cpp"
 #include "kmer.cpp"
 #include "pos_EDS_to_FA.cpp"
+#include "pos_EDS_to_GFA.cpp"
 #include "adjacency.cpp"
 #include "minimizer_builder.cpp"
 #include "align_dp.cpp"

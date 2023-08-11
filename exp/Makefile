@@ -27,12 +27,15 @@ HISAT_DIR   = hisat2
 GIRAFFE_DIR = giraffe
 MINIMAP_DIR = minimap2
 samples     = samples
+GEDMAP_DIR_CHM  = gedmap_chm13_graph
+GEDMAP_DIR38   = gedmap_hprc38
 
 #INPUT DATA
 DATA = $(gedmap)/data
 FA   = $(DATA)/hs37d5.fa
 VCF  = $(DATA)/human.vcf
 GZ_DIR =$(DATA)/gz
+GFA  = $(DATA)/hprc-v1.0-mc-chm13.gfa
 
 
 all: $(GEDMAP_DIR)/all $(GIRAFFE_DIR)/all $(HISAT_DIR)/all $(MINIMAP_DIR)/all
@@ -85,6 +88,27 @@ $(GEDMAP_DIR)/map.eval: samples $(DATA)/reads1a.fq $(DATA)/reads2a.fq
 	$(gedmap)/gedmap align $(DATA)/reads2a.fq      $(geds)  $(geds).min -2fa $(geds).2fa -a $(geds).adj -o $(GEDMAP_DIR)/tmpr2.sam -rc -t 8 -d 100
 
 	$(call all_my_eval, GEDMAP, $(GEDMAP_DIR))
+
+
+############################  GEDMAP CHM  ############################
+gfa_pref = $(GEDMAP_DIR_CHM)/chm13
+$(GEDMAP_DIR_CHM)/index.out: $(GFA)
+	mkdir -p $(GEDMAP_DIR_CHM)
+	{ /usr/bin/time -v $(gedmap)/gedmap parse_gfa $(GFA) -o $(gfa_pref)                  ; } 2>&1 | tee    $(GEDMAP_DIR_CHM)/index.out
+	{ /usr/bin/time -v $(gedmap)/gedmap index  $(gfa_pref).geds -a $(gfa_pref).adj -t 64 ; } 2>&1 | tee -a $(GEDMAP_DIR_CHM)/index.out
+	
+#MAP
+$(GEDMAP_DIR_CHM)/map.out: $(DATA)/reads1.fq  $(DATA)/reads2.fq $(gfa_pref).geds
+	{ /usr/bin/time -v $(gedmap)/gedmap align $(DATA)/reads1.fq $(gfa_pref).geds $(gfa_pref).geds.min -2gfa $(gfa_pref).2gfa -a $(gfa_pref).adj -o /dev/null -rc -t 8 -d 100          ; } 2>&1 | tee $(GEDMAP_DIR_CHM)/mapr1.out
+	{ /usr/bin/time -v $(gedmap)/gedmap align $(DATA)/reads2.fq $(gfa_pref).geds $(gfa_pref).geds.min -2gfa $(gfa_pref).2gfa -a $(gfa_pref).adj -o /dev/null -rc -t 8 -d 100          ; } 2>&1 | tee $(GEDMAP_DIR_CHM)/mapr2.out
+	$(call get_time,  $(GEDMAP_DIR_CHM)/mapr1.out, r1, $(GEDMAP_DIR_CHM)/map1.out)
+	$(call get_time,  $(GEDMAP_DIR_CHM)/mapr2.out, r2, $(GEDMAP_DIR_CHM)/map1.out)
+	$(call get_space, $(GEDMAP_DIR_CHM)/mapr1.out,     $(GEDMAP_DIR_CHM)/map2.out)
+	$(call get_space, $(GEDMAP_DIR_CHM)/mapr2.out,     $(GEDMAP_DIR_CHM)/map2.out)
+	paste -d ' ' $(GEDMAP_DIR_CHM)/map1.out $(GEDMAP_DIR_CHM)/map2.out > $(GEDMAP_DIR_CHM)/map.out
+	rm -f $(GEDMAP_DIR_CHM)/map1.out $(GEDMAP_DIR_CHM)/map2.out
+
+$(GEDMAP_DIR_CHM)/run: $(GEDMAP_DIR_CHM)/index.out $(GEDMAP_DIR_CHM)/map.out
 
 
 ############################ HISAT2 ############################

@@ -12,7 +12,7 @@ LIBS = -lsdsl -ldivsufsort -ldivsufsort64 -lstdc++fs
 SRC = src
 LIB  = $(SRC)/lib
 PROG = $(SRC)/programs
-OPTIONS = $(MY_CXX) $(MY_CXX_FLAGS) $(MY_CXX_OPT_FLAGS) -no-pie $(C_OPTIONS) -I$(INC_DIR) -L$(LIB_DIR) -std=c++2a
+OPTIONS = $(MY_CXX) $(MY_CXX_FLAGS) $(MY_CXX_OPT_FLAGS) -no-pie $(C_OPTIONS) -I$(INC_DIR) -L$(LIB_DIR) -std=c++2a -g
 
 #################################################
 ##############   COMPILE PROGRAM   ##############
@@ -32,6 +32,13 @@ gedmap: $(SRC)/* $(LIB)/* $(PROG)/*
 	$(OPTIONS) -fopenmp \
 	$(SRC)/gedmap.cpp -o gedmap \
 	$(LIBS)
+
+gedmap_debug: $(SRC)/* $(LIB)/* $(PROG)/*
+	$(OPTIONS) -fopenmp -g -fsanitize=address \
+	$(SRC)/gedmap.cpp -o gedmap_debug \
+	$(LIBS) \
+	-UNDEBUG -O0
+
 
 eval_sam: $(SRC)/evaluate_sam.cpp
 	$(MY_CXX) $(SRC)/evaluate_sam.cpp -o eval_sam
@@ -55,6 +62,9 @@ gedmap_eperiments: bin data_download
 
 a_little_example: bin
 	cd a_little_example && make
+
+a_little_example_gfa: bin
+	cd a_little_example && make ale_gfa
 
 #################################################
 

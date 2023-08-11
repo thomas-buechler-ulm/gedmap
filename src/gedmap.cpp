@@ -18,8 +18,8 @@
 #include <sdsl/rank_support_v5.hpp>
 
 //GEDMAP HEADERS
-#include "lib/align_dp.cpp"
 #include "default_values.hpp"
+#include "lib/align_dp.cpp"
 #include "lib/include.hpp"
 
 //EDSM PROGRAMS
@@ -30,14 +30,14 @@ using namespace sdsl;
 
 int main(int argc,  char** argv){
 	try{
-		if(argc == 1) {gedmap_io::print_short_help(argv[0]); exit(1);}
+		if(argc == 1)                          {gedmap_io::print_short_help(argv[0]);               exit(1);}
 		string prog =  argv[1];
-		if(prog == "-h" || prog == "--help"){
-			gedmap_io::print_long_help(argv[0]);
-			exit(0);
-		}
+		if(prog == "-h" || prog == "--help")   {gedmap_io::print_long_help(argv[0]);                exit(0);}
+		if(prog == "-v" || prog == "--version"){gedmap_io::print_row("version "+gedmap_io::VERSION);exit(0);}
+
 
 		if(prog == "parse")	return gedmap_parse	::main(argc, argv);
+		if(prog == "parse_gfa")	return gedmap_parse_gfa	::main(argc, argv);
  		if(prog == "index")	return gedmap_index_min	::main(argc, argv);
 		if(prog == "align")	return gedmap_align_min	::main(argc, argv);
 		if(prog == "sample")	return gedmap_sample	::main(argc, argv);

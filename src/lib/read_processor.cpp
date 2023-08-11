@@ -671,7 +671,7 @@ namespace read_processor {
 		const fasta_read<int_type>& read_r_c,
 		ostream & ofs,
 		bool write_failure,
-		const pos_EDS_to_FA_type & transform
+		const Transform & transform
 	) {
 		string 	QNAME	= read.id.substr(1);
 		string	RNAME	= "*";
@@ -704,8 +704,8 @@ namespace read_processor {
 			
 			if(alignments[i].align_r_c)
 				FLAG |= SAM_FLAGS::REV_COMP;
-			uint32_t off = 0;
-			if(!transform.empty()) tie(RNAME,POS,off) = transform(POS);
+			string additional_pos_info;
+			if(!transform.empty()) tie(RNAME,POS,additional_pos_info) = transform(POS);
 			
 				
 			ofs 	<< QNAME << '\t' << FLAG << '\t' << RNAME << '\t' << POS << '\t' << MAPQ << '\t' << CIGAR << '\t' << RNEXT << '\t' << PNEXT << '\t' << TLEN << '\t' 
@@ -713,7 +713,7 @@ namespace read_processor {
 				<< (alignments[i].align_r_c ? R_QUAL : QUAL) << '\t'
 				<< "NM:i:" << get_edit_distance(alignments[i].cigar)
 				<< " AS:i:" << alignments[i].dist
-				<< (off?(" XO:i:" + to_string(off)):"") << '\n';
+				<< additional_pos_info << '\n';
 		}
 		
 		return alignments.size();
@@ -726,14 +726,14 @@ namespace read_processor {
 	* @param transform		transforms position in EDS to position in FA
 	* @return number of alignments in output
 	*/
-	template< typename int_type >
+	template< typename int_type>
 	uint32_t
 	write_alignment(
 		const std::vector< alignment<int_type> >& alignments,
 		const fasta_read<int_type>& read,
 		ostream & ofs,
 		bool write_failure,
-		const pos_EDS_to_FA_type & transform
+		const Transform & transform
 	) {
 		return write_alignment(
 			alignments,
@@ -752,7 +752,7 @@ namespace read_processor {
 		const fasta_read<int_type>& read_1,
 		const fasta_read<int_type>& read_2,
 		ostream & ofs,
-		const pos_EDS_to_FA_type & transform
+		const Transform & transform
 	) {
 		// TODO: write failed mates?
 		for (size_t i = 0; i < alis.size(); i++) {
@@ -773,13 +773,13 @@ namespace read_processor {
 
 
 			std::array< uint64_t, 2 > POS;
-			std::array< uint32_t, 2 > off{{0, 0}};
+			std::vector< std::string> additional_pos_info(2);
 			std::array< std::string, 2 > RNAME;
 			for (size_t i = 0; i < 2; i++)
 			{
 				POS[i] = alignments[i]->pos + 1;
 				if (!transform.empty())
-					std::tie(RNAME[i], POS[i], off[i]) = transform(POS[i]);
+					std::tie(RNAME[i], POS[i], additional_pos_info[i]) = transform(POS[i]);
 				else
 					RNAME[i] = "*";
 			}
@@ -799,7 +799,7 @@ namespace read_processor {
 					<< reads[i]->qual << '\t'
 					<< "NM:i:" << get_edit_distance(alignments[i]->cigar)
 					<< " AS:i:" << alignments[i]->dist
-					<<  (off[i]?(" XO:i:" + to_string(off[i])):"") << '\n';
+					<<  additional_pos_info[i] << '\n';
 			}
 		}
 		return alis.size();

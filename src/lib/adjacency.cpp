@@ -127,20 +127,23 @@ adjacency::size_type adjacency::serialize(ostream& out, structure_tree_node* v,s
 	structure_tree_node *child 	= structure_tree::add_child(v, name, sdsl::util::class_name(*this));
 	
 	adjacency::size_type written_bytes 	= 0;
-	
-	sdsl::int_vector<64> sizes = sdsl::int_vector<64>(2,0,64);
-	sizes[0] = forward_targets.size();
+
 	if(forward_targets.size() != backward_targets.size()) throw runtime_error("edge sizes not equal");
-	{
-		std::vector<uint64_t> fn = map2vec(forward_edges);
-		sizes[1] = fn.size();
-		written_bytes += sizes.serialize(out, child, "sizes");
-		written_bytes += serialize_vector<uint64_t>(forward_targets,out,child,"forward_targets");
-		written_bytes += serialize_vector<uint64_t>(backward_targets,out,child,"backward_targets");
-		written_bytes += serialize_vector<uint64_t>(fn,out,child,"forward_edges");
-	}
+
+
+	sdsl::int_vector<64> sizes = sdsl::int_vector<64>(3,0,64);
+
+    std::vector<uint64_t> fn = map2vec(forward_edges);
 	std::vector<uint64_t> bn = map2vec(backward_edges);
-	if(bn.size() != sizes[1]) throw runtime_error("node sizes not equal");
+
+	sizes[0] = forward_targets.size();
+	sizes[1] = fn.size();
+	sizes[2] = bn.size();
+
+	written_bytes += sizes.serialize(out, child, "sizes");
+	written_bytes += serialize_vector<uint64_t>(forward_targets,out,child,"forward_targets");
+	written_bytes += serialize_vector<uint64_t>(backward_targets,out,child,"backward_targets");
+	written_bytes += serialize_vector<uint64_t>(fn,out,child,"forward_edges");
 	written_bytes += serialize_vector<uint64_t>(bn,out,child,"backward_edges");
 
 	structure_tree::add_size(child, written_bytes);
@@ -154,14 +157,17 @@ void adjacency::load(std::istream& in){
 	sdsl::int_vector<64> sizes;
 	sizes.load(in);
 	
-	forward_targets = vector<uint64_t>(sizes[0]);
-	load_vector<uint64_t>(forward_targets,in);
+	forward_targets  = vector<uint64_t>(sizes[0]);
 	backward_targets = vector<uint64_t>(sizes[0]);
-	load_vector<uint64_t>(backward_targets,in);	
+
+	load_vector<uint64_t>(forward_targets,in);
+	load_vector<uint64_t>(backward_targets,in);
 	
 	vector<uint64_t> tmp = vector<uint64_t>(sizes[1]);
 	load_vector<uint64_t>(tmp,in);
 	forward_edges = vec2map(tmp);
+
+    tmp = vector<uint64_t>(sizes[2]);
 	load_vector<uint64_t>(tmp,in);
 	backward_edges = vec2map(tmp);
 	

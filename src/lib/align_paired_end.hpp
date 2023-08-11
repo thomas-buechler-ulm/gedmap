@@ -440,7 +440,7 @@ map_pairs(
 	const ED_Graph<uint32_t>& msq, // minimum shift query
 	const std::string & EDS,
 	const adjacency & adj,
-	const pos_EDS_to_FA_type & p2FA,
+	const Transform & transform,
 	std::istream& fastq_l,
 	std::istream& fastq_r,
 	std::ofstream& o_s)
@@ -449,9 +449,9 @@ map_pairs(
 		gedmap_mini::minimizer_index,
 		std::string, // EDS
 		adjacency,
-		pos_EDS_to_FA_type,
+		Transform,
 		ED_Graph<uint32_t>
-		> env(mini, EDS, adj, p2FA, msq);
+		> env(mini, EDS, adj, transform, msq);
 	// set large buffers for fastq_{l,r}. Mostly useful for many threads
 	std::vector<char> outbuffer(1<<23);
 	o_s.rdbuf()->pubsetbuf(outbuffer.data(), outbuffer.size());
@@ -490,7 +490,7 @@ map_pairs(
 				alignments,
 				read_l, read_r,
 				o_s,
-				p2FA);
+				transform);
 
 			num_fallback += fallback_tried;
 

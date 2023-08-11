@@ -86,6 +86,13 @@ chrom1.vcf: gz/chrom1.vcf.gz
 	gzip -dkc gz/chrom1.vcf.gz | awk -v OFS='\t' '{print $$1, $$2, $$3, $$4, $$5, $$6, $$7, $$8}' >>  chrom1.vcf
 
 
+################################ GRAPH ##################################
+hprc-v1.0-mc-chm13.gfa.gz:
+	curl https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/freeze1/minigraph-cactus/hprc-v1.0-mc-chm13.gfa.gz -o hprc-v1.0-mc-chm13.gfa.gz
+
+hprc-v1.0-mc-chm13.gfa: hprc-v1.0-mc-chm13.gfa.gz
+	gzip -d hprc-v1.0-mc-chm13.gfa
+
 ################################ REAL READS ##################################
 reads.fq:
 	wget ftp://ftp.sra.ebi.ac.uk/vol1/fastq/SRR769/SRR769545/SRR769545_2.fastq.gz

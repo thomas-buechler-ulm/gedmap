@@ -67,7 +67,7 @@ string a_sample(string & EDS, pos_EDS_to_FA_type & p2FA, adjacency & adj){
 	CIGAR = gedmap_encode::RL_encode(CIGAR);
 			
 	string chrom_name = "";
-	uint32_t off;
+	string off;
 	pos++;// 1-indexed
 	
 	uint32_t chrom_pos = 0;
@@ -108,7 +108,7 @@ std::pair<std::string,std::string> mp_sample(string & EDS, pos_EDS_to_FA_type & 
 	//CIGAR = gedmap_encode::RL_encode(CIGAR);
 			
 	string chrom_name = "";
-	uint32_t off;
+	string off;
 	pos++; // 1-indexed
 	
 	uint32_t chrom_pos = 0;

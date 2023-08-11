@@ -8,16 +8,46 @@ const uint32_t tv_MAP  = 2;
 
 
 template<class int_type>
-void paralell_processor( gedmap_mini::minimizer_index & eoc, const std::string & EDS, const adjacency & ADJ, const pos_EDS_to_FA_type & p2FA, std::ifstream & fastq_s, std::ofstream& o_s);
+void paralell_processor( gedmap_mini::minimizer_index & eoc, const std::string & EDS, const adjacency & ADJ, const Transform & transform, std::ifstream & fastq_s, std::ofstream& o_s);
 
 template<class int_type>
-void paralell_processor_batch( gedmap_mini::minimizer_index & eoc, const std::string & EDS, const adjacency & ADJ, const pos_EDS_to_FA_type & p2FA, std::ifstream & fastq_s, std::ofstream& o_s);
+void paralell_processor_batch( gedmap_mini::minimizer_index & eoc, const std::string & EDS, const adjacency & ADJ, const Transform & transform, std::ifstream & fastq_s, std::ofstream& o_s);
 
 template<class int_type>
 std::vector<fasta_read<int_type>> read_batch(std::ifstream & fastq_s);
 
 template<class int_type>
 fasta_read<int_type> get_read_from_stream(std::ifstream & fastq_s);
+
+/*
+void unit_test(const std::string & EDS, const adjacency & ADJ){
+	for(size_t i = 0; i < EDS.size(); i++){
+		if(EDS[i] == '#'){
+			auto t = ADJ(i);
+			for(auto p : t){
+				auto p_it = EDS.cbegin() + p + 1;
+				if(*(p_it-1) != '#'){
+					cout << i << " -> " << p << " " << *(p_it-1) << "<" << endl;
+					exit(0);
+				}
+			}
+		}
+	}
+	for(size_t i = 0; i < EDS.size(); i++){
+		if(EDS[i] == '#'){
+			auto t = ADJ(i,adjacency::BACKWARD);
+			for(auto p : t){
+				auto p_it = EDS.cbegin() + p + 1;
+				if(*(p_it-1) != '#'){
+					cout << i << " -> " << p << " " << *(p_it-1) << "<" << endl;
+					exit(0);
+				}
+			}
+		}
+	}
+
+	cout << "TEST OK " << endl;
+}*/
 
 int main(int argc,  char** argv){
 	using namespace gedmap_io;
@@ -31,14 +61,17 @@ int main(int argc,  char** argv){
 	gedmap_mini::minimizer_index mini;
 	string EDS;
 	adjacency ADJ = adjacency();
-	pos_EDS_to_FA_type p2FA;
+	pos_EDS_to_FA_type p2fa;
+	pos_EDS_to_GFA_type p2gfa;
+	Transform* transform = &p2fa;
 
 	ifstream fastq_in_stream, fastq_in_stream2;
 	ofstream out_stream;
 
-	handle_input(argc, argv, mini, EDS, ADJ, p2FA, fastq_in_stream, fastq_in_stream2, out_stream);
+	handle_input(argc, argv, mini, EDS, ADJ, p2fa, p2gfa, fastq_in_stream, fastq_in_stream2, out_stream);
 	assert(ADJ.initialised);
 
+	if(!p2gfa.empty()) transform = &p2gfa;
 	
 	print_row("Search", argv[3]);
 	print_row("in", argv[2]);
@@ -63,16 +96,16 @@ int main(int argc,  char** argv){
 	// DIFFERENTIATE BETWEEN INTEGER SIZES
 	if (fastq_in_stream2.is_open()) {
 		// paired end mapping
-		if		(int_width <=  8 ) map_pairs< uint8_t>(mini, graph, EDS, ADJ, p2FA, fastq_in_stream, fastq_in_stream2, out_stream);
-		else if	(int_width <= 16 ) map_pairs<uint16_t>(mini, graph, EDS, ADJ, p2FA, fastq_in_stream, fastq_in_stream2, out_stream);
-		else if	(int_width <= 32 ) map_pairs<uint32_t>(mini, graph, EDS, ADJ, p2FA, fastq_in_stream, fastq_in_stream2, out_stream);
-		else if	(int_width <= 64 ) map_pairs<uint64_t>(mini, graph, EDS, ADJ, p2FA, fastq_in_stream, fastq_in_stream2, out_stream);
+		if		(int_width <=  8 ) map_pairs< uint8_t>(mini, graph, EDS, ADJ, *transform, fastq_in_stream, fastq_in_stream2, out_stream);
+		else if	(int_width <= 16 ) map_pairs<uint16_t>(mini, graph, EDS, ADJ, *transform, fastq_in_stream, fastq_in_stream2, out_stream);
+		else if	(int_width <= 32 ) map_pairs<uint32_t>(mini, graph, EDS, ADJ, *transform, fastq_in_stream, fastq_in_stream2, out_stream);
+		else if	(int_width <= 64 ) map_pairs<uint64_t>(mini, graph, EDS, ADJ, *transform, fastq_in_stream, fastq_in_stream2, out_stream);
 		else throw runtime_error (" in align main: EDS too long");
 	} else {
-		if		(int_width <=  8 ) paralell_processor< uint8_t>(mini, EDS, ADJ, p2FA, fastq_in_stream, out_stream);
-		else if	(int_width <= 16 ) paralell_processor<uint16_t>(mini, EDS, ADJ, p2FA, fastq_in_stream, out_stream);
-		else if	(int_width <= 32 ) paralell_processor<uint32_t>(mini, EDS, ADJ, p2FA, fastq_in_stream, out_stream);
-		else if	(int_width <= 64 ) paralell_processor<uint64_t>(mini, EDS, ADJ, p2FA, fastq_in_stream, out_stream);
+		if		(int_width <=  8 ) paralell_processor< uint8_t>(mini, EDS, ADJ, *transform, fastq_in_stream, out_stream);
+		else if	(int_width <= 16 ) paralell_processor<uint16_t>(mini, EDS, ADJ, *transform, fastq_in_stream, out_stream);
+		else if	(int_width <= 32 ) paralell_processor<uint32_t>(mini, EDS, ADJ, *transform, fastq_in_stream, out_stream);
+		else if	(int_width <= 64 ) paralell_processor<uint64_t>(mini, EDS, ADJ, *transform, fastq_in_stream, out_stream);
 		else throw runtime_error (" in align main: EDS too long");
 	}
 
@@ -91,10 +124,15 @@ int main(int argc,  char** argv){
  * write alignment to sam file
  */
 template<class int_type>
-void paralell_processor( gedmap_mini::minimizer_index & mini, const std::string & EDS, const adjacency & ADJ,const pos_EDS_to_FA_type & p2FA, std::ifstream & fastq_s, std::ofstream& o_s){
+void paralell_processor(
+gedmap_mini::minimizer_index & mini,
+const std::string & EDS,
+const adjacency & ADJ,
+const Transform & transform,
+std::ifstream & fastq_s, std::ofstream& o_s){
 
 	if(IN_ORDER){
-		paralell_processor_batch<int_type>(mini,EDS,ADJ,p2FA,fastq_s,o_s);
+		paralell_processor_batch<int_type>(mini,EDS,ADJ,transform,fastq_s,o_s);
 		return;
 	}
 
@@ -102,7 +140,7 @@ void paralell_processor( gedmap_mini::minimizer_index & mini, const std::string 
 		gedmap_mini::minimizer_index,
 		std::string, // EDS
 		adjacency,
-		pos_EDS_to_FA_type> env(mini, EDS, ADJ, p2FA);
+		Transform> env(mini, EDS, ADJ, transform);
 	
 	string s;
 	size_t read_count = 0;
@@ -167,7 +205,7 @@ void paralell_processor( gedmap_mini::minimizer_index & mini, const std::string 
 					read,
 					o_s,
 					WRITE_FAILURE,
-					p2FA);
+					transform);
 				results += res;
 				if (res > 0) mapped++;
 				count++;
@@ -181,7 +219,7 @@ void paralell_processor( gedmap_mini::minimizer_index & mini, const std::string 
 		for (uint32_t r = 0; r < read_count; r++){
 			
 			fasta_read<int_type> read;
-			
+
 			#pragma omp critical
 			{
 				read = fasta_read<int_type>(fastq_s);
@@ -222,7 +260,7 @@ void paralell_processor( gedmap_mini::minimizer_index & mini, const std::string 
 					read,
 					o_s,
 					WRITE_FAILURE,
-					p2FA);
+					transform);
 				results += res;
 				if (res) mapped++;
 				count++;
@@ -246,22 +284,23 @@ void paralell_processor( gedmap_mini::minimizer_index & mini, const std::string 
 }
 
 
+
 /** @brief 
  * read read from fastq file
  * map read in the index
  * write alignment to sam file
  */
 template<class int_type>
-void paralell_processor_batch( gedmap_mini::minimizer_index & mini, const std::string & EDS, const adjacency & ADJ,const pos_EDS_to_FA_type & p2FA, std::ifstream & fastq_s, std::ofstream& o_s){
+void paralell_processor_batch( gedmap_mini::minimizer_index & mini, const std::string & EDS, const adjacency & ADJ,const Transform & transform, std::ifstream & fastq_s, std::ofstream& o_s){
 	fastq_s.clear();
 	fastq_s.seekg(0);
-	uint32_t batchsize = 10000;
+	uint32_t batchsize = BATCH_SIZE_IN_ORDER;
 
 	environment<
 		gedmap_mini::minimizer_index,
 		std::string, // EDS
 		adjacency,
-		pos_EDS_to_FA_type> env(mini, EDS, ADJ, p2FA);
+		Transform> env(mini, EDS, ADJ, transform);
 
 	gedmap_io::print_row("MAPPING:");
 	uint32_t results	= 0;
@@ -296,7 +335,8 @@ void paralell_processor_batch( gedmap_mini::minimizer_index & mini, const std::s
 		
 		if(!MAP_RC){
 			#pragma omp parallel for  schedule(dynamic,10)
-			for(uint32_t r = 0; r < reads.size(); r++){				
+			for(uint32_t r = 0; r < reads.size(); r++){
+				//cout << r << " " << reads[r].id << endl;
 				for (size_t i = 0;
 					i < FRAGMENT_COUNT.size() && (alignments[r].empty() || alignments[r][0].dist >= DOUBT_DIST);
 					i++)
@@ -320,7 +360,7 @@ void paralell_processor_batch( gedmap_mini::minimizer_index & mini, const std::s
 			}
 		}else{
 			#pragma omp parallel for  schedule(dynamic,10)
-			for(uint32_t r = 0; r < reads.size(); r++){			
+			for(uint32_t r = 0; r < reads.size(); r++){
 				for (size_t i = 0;
 					i < FRAGMENT_COUNT.size() && (alignments[r].empty() || alignments[r][0].dist >= DOUBT_DIST);
 					i++)
@@ -349,19 +389,18 @@ void paralell_processor_batch( gedmap_mini::minimizer_index & mini, const std::s
 				}
 			}
 		}
-		
+
 		for(uint32_t r = 0; r < reads.size(); r++){
 			const auto res = read_processor::write_alignment(
 				std::move(alignments[r]),
 				reads[r],
 				o_s,
 				WRITE_FAILURE,
-				p2FA);
+				transform);
 			results += res;
 			if (res > 0) mapped++;
 			count++;
-			if(!(count%1000))
-				gedmap_io::flush_row("Searched reads", to_string(count));
+			gedmap_io::flush_row("Searched reads", to_string(count));
 			chances_count += my_searches_chances;
 		}
 	}

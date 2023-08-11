@@ -4,6 +4,7 @@
 //##############  FILE EXTENSIONS ####################
 const std::string FEX_EDS		= "geds";
 const std::string FEX_2FA 		= "2fa";
+const std::string FEX_2GFA 		= "2gfa";
 const std::string FEX_ADJ 		= "adj";
 const std::string FEX_EOC 		= "eoc";
 const std::string FEX_MIN 		= "min";
@@ -11,6 +12,8 @@ const std::string FEX_SAM 		= "sam";
 const std::string FEX_LOG 		= "log";
 const std::string FEX_SAMPLE 		= "sample.fastq";
 
+
+namespace gedmap_io{ const std::string VERSION="1.1"; }
 
 //##############  TEMPORY FILES ####################
 const std::string TMP_DIR_DEFAULT	= "/tmp";
@@ -24,6 +27,13 @@ namespace gedmap_parse{
 	const std::string TMP_PARSE_REF_IND	= "/ref_ind.ivb.sdsl";
 	const uint32_t PLAIN_ALT_LIMIT_DEFAULT = 50;
 	uint32_t PLAIN_ALT_LIMIT = PLAIN_ALT_LIMIT_DEFAULT;
+}
+
+namespace gedmap_parse_gfa{
+	bool print = false;
+	uint32_t BUB_max_length = 50;
+	uint32_t BUB_max_path_c = 20;
+
 }
 
 namespace gedmap_index_min{
@@ -52,6 +62,8 @@ namespace gedmap_align_min{
 	const std::vector<uint32_t> MAX_ALIGNS_T_DEFAULT= {10};
 	const uint32_t MAX_ALIGNS_T_FALLBACK_DEFAULT = 100;
 	const uint32_t MAX_ALIGNS_O_DEFAULT		= 1;
+	uint32_t BATCH_SIZE_IN_ORDER			= 10000;
+	uint32_t MAX_PATHS_IN_ALIGNMENT		= 1024;
 	const uint32_t THREAD_COUNT_DEFAULT		= omp_get_max_threads();
 	std::vector<uint32_t> FRAGMENT_COUNT	= FRAGMENT_COUNT_DEFAULT;
 	//uint32_t BATCH_SIZE				= BATCH_SIZE_DEFAULT;

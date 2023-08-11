@@ -149,7 +149,7 @@ protected:
 	inline col_id add_col_(I lo, I hi) {
 		//assert (lo <= hi);
 		const col_id last_added = m_data.size();
-		m_data.resize(last_added + get_byte_size(lo <= hi ? hi + 1 - lo : 0));
+		m_data.resize(last_added + get_byte_size(lo <= hi ? hi + 1 - lo : 1));
 		assert(columns.emplace(last_added).second);
 		I* bounds = reinterpret_cast<I*>(m_data.data() + last_added);
 		bounds[0] = lo, bounds[1] = hi;
@@ -208,6 +208,7 @@ public:
 		return c_ix;
 	}
 	Table_(I lo, I hi) {
+		assert(lo <= hi);
 		m_data.reserve(get_byte_size(1000)); // TODO: make input-dependant?
 		const auto c_ix = add_col_(lo, hi);
 		get_(c_ix, 0) = 0;
@@ -552,7 +553,8 @@ R align(const JI& jump_index, const PC& j, const PC& j_end, const RP& read_b, co
 	else {
 		assert(res <= max_err);
 
-		if constexpr (traceback) assert(res == max_err);
+		// THE FOLLOWING IS ONLY TRUE IF WE DO NOT TERMINATE EARLY
+		// if constexpr (traceback) assert(res == max_err);
 
 		// generate CIGAR string
 
@@ -866,7 +868,7 @@ template<bool traceback = false,
 	typename MD = std::conditional_t<traceback, std::pair<D,D>, D>>
 R align_dp(std::string_view eds, const ADJ& adj, PC j, const Read& read, const ReadQual& qual, size_t i, MD max_err) {
 	using namespace edsm_align;
-
+	//std::cout << "align_dp R " << read << " j=" << j << " i=" << i << " tb="<< traceback << " max_err: " << max_err << std::endl;
 	if (read.size() == 0)
 		return R{};
 
@@ -889,7 +891,7 @@ R align_dp(std::string_view eds, const ADJ& adj, PC j, const Read& read, const R
 		}
 	}
 	RLE cigar_backward{};
-
+	size_t number_of_considered_paths = 0;
 	auto err_b = align<traceback, D>(
 		[&](auto it) {
 			assert(*it == '#');
@@ -901,6 +903,12 @@ R align_dp(std::string_view eds, const ADJ& adj, PC j, const Read& read, const R
 				assert(*(p_it-1) == '#');
 				res.emplace_back(p_it);
 			}
+			if (res.size() > 0){
+				if (number_of_considered_paths > gedmap_align_min::MAX_PATHS_IN_ALIGNMENT)
+					res.clear();
+				else
+					number_of_considered_paths += res.size();
+			}
 			return res;
 		},
 		backwards_start,
@@ -908,16 +916,18 @@ R align_dp(std::string_view eds, const ADJ& adj, PC j, const Read& read, const R
 		read.crbegin() + read.size() - 1u - i, read.crend(),
 		qual.crbegin() + read.size() - 1u - i,
 		[&] { if constexpr (traceback) return max_err.second; else return max_err; }(),
-		[&](char c) { cigar_backward.append(c); });
+							   [&](char c) { cigar_backward.append(c); });
 
 	if constexpr (traceback)
 		cigar_backward.append(match_symb);
 
-	if constexpr (!traceback)
-		if (err_b.first > max_err)
-			return std::make_pair(std::make_pair(0, err_b.first), size_t{0});
+	if constexpr (not traceback)
+		if (err_b.first > max_err or number_of_considered_paths > gedmap_align_min::MAX_PATHS_IN_ALIGNMENT)
+			return std::make_pair(std::make_pair(0, max_err + 1), size_t{0});
+
 
 	RLE cigar_forward{};
+	number_of_considered_paths = 0; //only follow MAX_PATHS_IN_ALIGNMENT paths for alignment
 	const auto err_f = align<traceback, D>(
 		[&](auto it) {
 			assert(*it == '#');
@@ -929,6 +939,12 @@ R align_dp(std::string_view eds, const ADJ& adj, PC j, const Read& read, const R
 				assert(*(p_it-1) == '#');
 				res.emplace_back(p_it);
 			}
+			if (res.size() > 0){
+				if (number_of_considered_paths > gedmap_align_min::MAX_PATHS_IN_ALIGNMENT)
+					res.clear();
+				else
+					number_of_considered_paths += res.size();
+			}
 			return res;
 		},
 		eds.cbegin() + j,
@@ -937,7 +953,11 @@ R align_dp(std::string_view eds, const ADJ& adj, PC j, const Read& read, const R
 		qual.cbegin() + i,
 		[&] { if constexpr (traceback) return max_err.first; else return max_err - err_b.first; }(),
 		[&](char c) { cigar_forward.prepend(c); });
+
 	if constexpr (not traceback) {
+		if (number_of_considered_paths > gedmap_align_min::MAX_PATHS_IN_ALIGNMENT)
+			return std::make_pair(std::make_pair(max_err + 1, err_b.first), 0);
+
 		const size_t res_pos = err_f.first + err_b.first > max_err
 			? 0
 			: j - std::distance(backwards_start, err_b.second);

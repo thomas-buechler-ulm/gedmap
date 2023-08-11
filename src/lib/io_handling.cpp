@@ -240,10 +240,10 @@ string missing_value (string arg){
 void print_short_help(string bin_path){
 	dotline();
 	print_row("GEDMAP (Graph-ED-string-MAPper) is a program collection around read mapping to a graph of ED stings.");
-	print_row("version 1.0");
+	print_row("version "+VERSION);
 	dotline();
 	cout
-	 << "The containd programs are: \n - gedmap parse\n - gedmap index\n - gedmap align\n - gedmap sample\n";
+	 << "The containd programs are: \n - gedmap parse\n - gedmap parse_gfa\n - gedmap index\n - gedmap align\n - gedmap sample\n";
 	dotline();
 	 cout << "call '"  << bin_path << " program_name -h' to print the manual of the program."
 	 << "\ncall '"  << bin_path << " -h' to print the manuel of all programs.\n";
@@ -259,7 +259,6 @@ string expected_arguments(vector<string> &args, vector<string> & parameters){
 		ss << "Optional parameters: " << endl;
 	for(uint32_t i = 0; i < parameters.size(); i++)
 		ss << parameters[i] << endl;
-	ss << endl;
 	return ss.str();
 }
 
@@ -347,6 +346,73 @@ void handle_input(int argc, char**& argv, string& fname_fa, string& fname_vcf, s
 		exit(1);
 	}
 }
+}
+
+
+namespace gedmap_parse_gfa{
+using namespace gedmap_io;
+void print_help(){
+	vector<string> args { "filename of GFA"};
+	vector<string> params {
+		"-o           , output prefix for the " + FEX_EDS + ", " + FEX_ADJ + " and " + FEX_2GFA + " file (default [1])",
+		"-w           , maximum bubble with (default " + to_string(BUB_max_length) + ")",
+		"-p           , maximum number of paths in bubble (default " + to_string(BUB_max_path_c) + ")"};
+		cout << "'gedmap parse_gfa' parses a GFA file and to an EDS graph."	<< endl;
+		cout << "The biderected graph will be transformed to a graph, "		<< endl;
+		cout << "where each node is only used in forward direction."		<< endl;
+		cout << "Subsequently bubbles in the graph will be detected."		<< endl;
+		cout << "The bubbles will be wrote in parenthesized ED-strings."		<< endl;
+		cout << "The graph is stored in ."		<< endl;
+		dotline();
+		cout << expected_arguments(args, params);
+		dotline();
+}
+
+/**
+ * \param [2] filename of GFA
+ */
+void handle_input(int argc, char**& argv, string& fname_fa, string& fname_out){
+	try{
+		for(int i = 0; i < argc; i++)
+			if(string(argv[i]) == "-h" || string(argv[i]) == "--help"){
+				print_help();
+				exit(0);
+			}
+
+		if(argc < 3) throw invalid_argument( "in gedmap parse_gfa: " + missing_arguments);
+
+		fname_fa  = argv[2];
+		fname_out = fname_fa;
+
+		bool input_error = false;
+		input_error |= file_access(fname_fa);
+
+		if(input_error) throw invalid_argument("in gedmap parse_gfa: " + not_loaded);
+
+
+		for(int i = 3; i < argc;){
+			string param = argv[i++];
+			if(i >= argc)	throw invalid_argument("in gedmap parse_gfa: " + missing_value(param));
+			string value = argv[i++];
+			if("-w" == param)
+				BUB_max_length = stoi(value);
+			else if("-p" == param)
+				BUB_max_path_c = stoi(value);
+			else if("-o" == param)
+				fname_out = value;
+			else
+				throw invalid_argument("in gedmap parse_gfa: " + unknown_argument(param));
+		}
+	}
+	catch(exception & e){
+		print_error(e.what());
+		print_call_for_help(string(argv[0]) + " " + argv[1]);
+		exit(1);
+	}
+
+}
+
+
 }
 
 namespace gedmap_index_min{
@@ -437,6 +503,7 @@ void print_help(){
 	vector<string> params {
 	"... IO",
 	"-2fa             , .2fa-file , if given this is used to transform GEDS-positions to FA positions",
+	"-2gfa             , .2gfa-file , if given this is used to transform GEDS-positions to GFA-nodes or sequence positions",
 	"-a fname         , file name of the adijacency file",
 	"-o               , fname, output will be stored in file fname (default  [2]."+FEX_SAM+")",
 	"-oa              , only aligned reads will be reported",
@@ -480,7 +547,7 @@ void print_help(){
  * \param [3] filename of FASTQ
  * \param [4] filename of EOC
  */
-void handle_input(int argc,  char**& argv, gedmap_mini::minimizer_index & eoc, string & EDS, adjacency & ADJ, pos_EDS_to_FA_type & p2FA, ifstream & fastq_s, ifstream& fastq_s2, ofstream & o_s){
+void handle_input(int argc,  char**& argv, gedmap_mini::minimizer_index & eoc, string & EDS, adjacency & ADJ, pos_EDS_to_FA_type & p2fa, pos_EDS_to_GFA_type & p2gfa, ifstream & fastq_s, ifstream& fastq_s2, ofstream & o_s){
 	using namespace std;
 
 	string 	fname_EDS;
@@ -558,7 +625,9 @@ void handle_input(int argc,  char**& argv, gedmap_mini::minimizer_index & eoc, s
 			else if("-d" == param)
 				MAX_DIST = parse_uint32_vector(value);
 			else if("-2fa" == param)
-				input_error |= sdsl_load(value, p2FA);
+				input_error |= sdsl_load(value, p2fa);
+			else if("-2gfa" == param)
+				input_error |= sdsl_load(value, p2gfa);
 			else if("-t" == param)
 				THREAD_COUNT = stoi(value);
 			else if("-a" == param)
@@ -601,7 +670,7 @@ void handle_input(int argc,  char**& argv, gedmap_mini::minimizer_index & eoc, s
 		if(fname_sam.size() == 0)
 			fname_sam = fname_fastq + "." +  FEX_SAM;
 		fastq_s.open(fname_fastq);
-		o_s.open(fname_sam);
+		o_s.open(fname_sam, std::ofstream::out);
 
 	}catch(std::exception& e){
 		print_error(e.what());

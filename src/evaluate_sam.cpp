@@ -97,8 +97,8 @@ int main(int argc, char *argv[]){
 		bool correct_pos;
 		if(query_fields.size() > 3){
 			uint64_t sample_pos = stol( query_fields [3]);
-			correct_pos = abs(sample_pos,mapping_pos) < CORRECT_POSITION_TRESHOLD;
-			if(!correct_pos && mapping_pos_mate) correct_pos = abs(mapping_pos_mate,sample_pos) < CORRECT_POSITION_TRESHOLD;
+			correct_pos = (abs(sample_pos,mapping_pos) < CORRECT_POSITION_TRESHOLD) && (fields[2] == query_fields[1]); //Compare positions && Chromosome names
+			if(!correct_pos && mapping_pos_mate) correct_pos = (abs(mapping_pos_mate,sample_pos) < CORRECT_POSITION_TRESHOLD) && (fields[2] == query_fields[1]); //Compare positions && Chromosome names
 			if(correct_pos) count_correct_pos++;
 		}
 		

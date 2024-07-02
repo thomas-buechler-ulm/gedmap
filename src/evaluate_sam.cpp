@@ -41,23 +41,23 @@ int main(int argc, char *argv[]){
 	uint32_t NOT_PRIM	= 256;
 	uint32_t SUPPLEMENTARY	= 2048;
 
-	uint32_t CORRECT_POSITION_TRESHOLD = 600;
+	uint32_t CORRECT_POSITION_TRESHOLD 	= 600;
 
 	//COUNTERS
-	uint32_t count_all 				= 0;
-	uint32_t count_mapped 				= 0;
-	uint32_t count_correct_pos	= 0;
+	uint32_t count_all 			= 0;
+	uint32_t count_mapped 			= 0;
+	uint32_t count_correct_pos		= 0;
 	uint32_t count_correct_pos_better_eq	= 0;
-	uint32_t count_correct_pos_worse		= 0;
+	uint32_t count_correct_pos_worse	= 0;
 	
 	uint32_t count_other_pos_better 	= 0;
-	uint32_t count_other_pos_equal 	= 0;
-	uint32_t count_other_pos_worse 	= 0;
+	uint32_t count_other_pos_equal 		= 0;
+	uint32_t count_other_pos_worse 		= 0;
 
 	uint32_t count_unmap			= 0;
 	
-	uint32_t NM_commulated	= 0;
-	uint32_t NM_count		= 0;
+	uint32_t NM_commulated			= 0;
+	uint32_t NM_count			= 0;
 
 	string entry;
 
@@ -97,8 +97,8 @@ int main(int argc, char *argv[]){
 		bool correct_pos;
 		if(query_fields.size() > 3){
 			uint64_t sample_pos = stol( query_fields [3]);
-			correct_pos = (abs(sample_pos,mapping_pos) < CORRECT_POSITION_TRESHOLD) && (fields[2] == query_fields[1]); //Compare positions && Chromosome names
-			if(!correct_pos && mapping_pos_mate) correct_pos = (abs(mapping_pos_mate,sample_pos) < CORRECT_POSITION_TRESHOLD) && (fields[2] == query_fields[1]); //Compare positions && Chromosome names
+			correct_pos = (abs(sample_pos,mapping_pos) <= CORRECT_POSITION_TRESHOLD) && (fields[2] == query_fields[1]); //Compare positions && Chromosome names
+			if(!correct_pos && mapping_pos_mate) correct_pos = (abs(mapping_pos_mate,sample_pos) <= CORRECT_POSITION_TRESHOLD) && (fields[2] == query_fields[1]); //Compare positions && Chromosome names
 			if(correct_pos) count_correct_pos++;
 		}
 		
